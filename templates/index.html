@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+    <head>
+        <title>Student Market Place</title>
+    </head>
+    <body>
+        <h1>Add listings</h1>
+        <form method="POST" action="/add ">
+            <input type="text" name="title" placeholder="Item name" required>
+            <input type="text" name="price" placeholder="Item price" required>
+            <select name="category" required>
+                <option value="">Select category</option>
+                <option value="Electronics">Electronics</option>
+                <option value="Furniture">Furniture</option>
+                <option value="Clothing">Clothing</option>
+                <option value="Room">Room</option>
+                <option value="Kitchen">Kitchen</option>
+            </select>
+            <label>
+                <input type="checkbox" name="featured">
+                Boost this listing (500 XAF)
+            </label>
+            <button type="submit">Add</button>
+        </form>
+        
+        <hr>
+
+        <h1>Available listings</h1>
+                <h3>Filter by Category</h3>
+                <a href="/">All</a>
+                <a href="/?category=Furniture">Furniture</a>
+                <a href="/?category=Kitchen">Kitchen</a>
+                <a href="/?category=Electronics">Electronics</a>
+                <a href="/?category=Room">Room</a>
+                <a href="/?category=Clothing">Clothing</a>
+        {% for item in listings %}
+            <div style="border:1px soild black; padding: 10px; margin: 10px;">
+
+                <!-- {% if item[3] == 1 %}
+                    <strong style="color: red;">🔥 Featured</strong><br>
+                {% endif %} -->
+
+                <h2>{{ item['title'] }} 
+                        {% if item['is_featured'] == 1 %}
+                        
+                            <span style="color:red;">🔥</span>
+                            <br>
+                            <small style="color: red;">featured</small>
+                        {% endif %}
+                </h2>
+                <p>Price: {{ item['price'] }}</p>
+                <p>Category: {{ item['category'] }}</p>
+            </div>
+        {% endfor %}
+    </body>
+</html>
