@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Create Listing</title>
+</head>
+<body>
+
+<h1>Add New Listing</h1>
+  <form method="POST" action="/add ">
+            <input type="text" name="title" placeholder="Item name" required>
+            <input type="text" name="price" placeholder="Item price" required>
+            <select name="category" required>
+                <option value="">Select category</option>
+                <option value="Electronics">Electronics</option>
+                <option value="Furniture">Furniture</option>
+                <option value="Clothing">Clothing</option>
+                <option value="Room">Room</option>
+                <option value="Kitchen">Kitchen</option>
+            </select>
+            <label>
+                <input type="checkbox" name="featured">
+                Boost this listing (500 XAF)
+            </label>
+            <button type="submit">Post listing</button>
+        </form>
+<br>
+<a href="/">⬅ Back to listings</a>
+
+</body>
+</html>

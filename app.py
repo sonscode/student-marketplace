@@ -59,7 +59,11 @@ def add_listing():
     conn.commit()
     conn.close()
 
-    return redirect('/')            
+    return redirect('/')
+
+@app.route('/create')
+def create():
+    return render_template('create-listing.html')
 
     # listings = [
     #     {'title': 'Bed', 'price': '20000 XAF'},
