@@ -49,6 +49,19 @@
                         {% endif %}
                 </h2>
                 <p>Price: {{ item['price'] }}</p>
+                {% if item['days_left'] < 0 %}
+                    <p>Expired {{ (item['days_left'] * -1) }} day(s) ago</p>
+                    <span style="color:gray;"><small>expired</small></span>
+                {% else %}
+                    <p>Leaving in: {{ item['days_left'] }} days</p>
+                {% endif %}
+                {% if 0 <= item['days_left'] <= 3 %}
+                    <span style="color:red; font-weight:bold;"><small>⚡urgent</small></span>
+                {% endif %}
+                <p>Phone: {{ item['phone'] }}</p>
+                <a href="https://wa.me/{{ item['phone'] }}" target="_blank">
+                    <button>Contact on WhatsApp</button>
+                </a>
                 <p>Category: {{ item['category'] }}</p>
             </div>
         {% endfor %}
