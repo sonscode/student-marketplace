@@ -51,7 +51,10 @@ def home():
         leave_date = datetime.strptime(item['leave_date'], "%Y-%m-%d").date()
         today = datetime.today().date()
         days_left = (leave_date - today).days
-        is_urgent = 1 if days_left <= 3 else 0
+        if days_left < -1:
+            continue   # hide only after 1 extra day past expiration
+
+        is_urgent = 1 if 0 <= days_left <= 3 else 0
 
         enhanced_listings.append({
             "id": item["id"],
@@ -61,16 +64,16 @@ def home():
             "phone": item["phone"],
             "is_featured": item["is_featured"],
             "days_left": days_left,
-            "days_left": days_left,
             "is_urgent": is_urgent
         })
-        enhanced_listings.sort(
-            key=lambda x: (x['is_featured'], x['is_urgent'], -x['days_left']),
-            reverse=True
-)
-        if days_left < 0:
-            continue   # skip expired listings
-            is_urgent = 1 if days_left <= 3 else 0
+
+    enhanced_listings.sort(
+        key=lambda x: (
+            0 if x['is_featured'] == 1 else 1 if x['is_urgent'] == 1 else 2 if x['days_left'] >= 0 else 3,
+            x['days_left'],
+            -x['id']
+        )
+    )
     conn.close()
     return render_template("index.html", listings=enhanced_listings)
 
