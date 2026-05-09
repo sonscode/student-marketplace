@@ -57,7 +57,7 @@
                     <p>Leaving in: {{ item['days_left'] }} days</p>
                 {% endif %}
                 {% if 0 <= item['days_left'] <= 3 %}
-                    <span style="color:red; font-weight:bold;"><small>⚡urgent</small></span>
+                    <span style="color: orange; font-weight:bold;"><small>⚡urgent</small></span>
                 {% endif %}
                 <p>Phone: {{ item['phone'] }}</p>
                 <a href="https://wa.me/{{ item['phone'] }}" target="_blank">
