@@ -25,6 +25,12 @@
         <a href="/create">
             <button>Add New Listing</button>
         </a>
+
+        <form action="/" method="get">
+            <input type="text" name="search" placeholder="Search listings..." value="{{ request.args.get('search', '') }}">
+            <button type="submit">Search</button>
+        </form>
+
         <h1>Available listings</h1>
                 <h3>Filter by Category</h3>
                 <a href="/">All</a>
@@ -41,7 +47,7 @@
                     <strong style="color: red;">🔥 Featured</strong><br>
                 {% endif %} -->
 
-                <h2>{{ item['title'] }} 
+                <h2>{{ item['title'] | highlight(search) }} 
                         {% if item['is_featured'] == 1 %}
                         
                             <span style="color:red;">🔥</span>
@@ -80,4 +86,12 @@
             </div>
         {% endfor %}
     </body>
+
+<style>
+    mark {
+        background-color: #ffd54f;
+        padding: 2px;
+        border-radius: 3px;
+    }
+</style>
 </html>

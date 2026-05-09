@@ -1,12 +1,30 @@
 import os
 import re
 import uuid
+import difflib
+from markupsafe import Markup
 from flask import Flask, render_template, request, redirect
 from datetime import datetime
 from werkzeug.utils import secure_filename
 import sqlite3
 
 app = Flask(__name__)
+@app.template_filter('highlight')
+
+@app.template_filter('highlight')
+def highlight(text, search):
+    if not search:
+        return text
+
+    pattern = re.compile(re.escape(search), re.IGNORECASE)
+
+    highlighted = pattern.sub(
+        lambda m: f"<mark>{m.group()}</mark>",
+        text
+    )
+
+    return Markup(highlighted)
+
 UPLOAD_FOLDER = os.path.join(app.root_path, 'static', 'uploads')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -44,14 +62,76 @@ def home():
     cursor=conn.cursor()
 
     category = request.args.get('category')
+    search = request.args.get('search')
     
     # Fetch listings
-    if category:
-        cursor.execute("SELECT * FROM listings WHERE category = ? ORDER BY is_featured DESC, id DESC", (category,))
-    else:
-        cursor.execute("SELECT * FROM listings ORDER BY is_featured DESC, id DESC")
+# Fetch listings
 
-    listings = cursor.fetchall()
+    if category and search:
+        query = f"%{search}%"
+
+        cursor.execute("""
+            SELECT * FROM listings
+            WHERE category = ?
+            AND (
+                title LIKE ?
+                OR category LIKE ?
+                OR price LIKE ?
+            )
+            ORDER BY is_featured DESC, id DESC
+            """, (category, query, query, query))
+
+    elif category:
+        cursor.execute("""
+            SELECT * FROM listings
+            WHERE category = ?
+            ORDER BY is_featured DESC, id DESC
+            """, (category,))
+
+    elif search:
+        cursor.execute("""
+            SELECT * FROM listings
+            ORDER BY is_featured DESC, id DESC
+            """)
+
+        all_listings = cursor.fetchall()
+
+        filtered = []
+
+        for item in all_listings:
+            # searchable_text = f"{item['title']} {item['category']}"
+            searchable_text = f"""
+                {item['title']}
+                {item['category']}
+                {item['price']}
+                """.lower()
+
+            phone = item['phone']
+
+            similarity = difflib.SequenceMatcher(
+                None,
+                search.lower(),
+                searchable_text
+                ).ratio()
+
+            if (
+                search.lower() in searchable_text
+                or search in phone
+                or similarity > 0.45
+                ):
+                filtered.append(item)
+
+        listings = filtered
+
+    else:
+        cursor.execute("""
+            SELECT * FROM listings
+            ORDER BY is_featured DESC, id DESC
+            """)
+        
+    if 'listings' not in locals():
+        listings = cursor.fetchall()
+
     enhanced_listings = []
 
     for item in listings:
@@ -73,7 +153,7 @@ def home():
             "days_left": days_left
         })
     conn.close()
-    return render_template("index.html", listings=enhanced_listings)
+    return render_template("index.html", listings=enhanced_listings, search=search)
 
 @app.route('/add', methods=['POST'])
 def add_listing():
