@@ -55,7 +55,7 @@
                             <small style="color: red;">featured</small>
                         {% endif %}
                 </h2>
-                <p>Price: {{ item['price'] }}</p>
+                <p>Price: {{ item['price'] | highlight(search) }}</p>
                 {% if item['image'] %}
                     <img src="{{ url_for('static', filename='uploads/' + item['image']) }}" width="200">
                 {% endif %}
@@ -68,11 +68,11 @@
                 {% if 0 <= item['days_left'] <= 3 %}
                     <span style="color: orange; font-weight:bold;"><small>⚡urgent</small></span>
                 {% endif %}
-                <p>Phone: {{ item['phone'] }}</p>
+                <p>Phone: {{ item['phone'] | highlight(search) }}</p>
                 <a href="https://wa.me/{{ item['phone'] }}" target="_blank">
                     <button>Contact on WhatsApp</button>
                 </a>
-                <p>Category: {{ item['category'] }}</p>
+                <p>Category: {{ item['category'] | highlight(search) }}</p>
 
 <!-- Edit and delete -->
 

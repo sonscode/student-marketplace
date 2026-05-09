@@ -11,12 +11,28 @@ import sqlite3
 app = Flask(__name__)
 @app.template_filter('highlight')
 
-@app.template_filter('highlight')
+
 def highlight(text, search):
+    if text is None:
+        return ""
+
+    text = str(text)
     if not search:
         return text
 
-    pattern = re.compile(re.escape(search), re.IGNORECASE)
+    search = search.strip()
+    if not search:
+        return text
+
+    # Highlight each search token (works better for multi-word queries).
+    terms = [term for term in search.split() if term]
+    if not terms:
+        return text
+
+    pattern = re.compile(
+        r"(" + "|".join(re.escape(term) for term in sorted(set(terms), key=len, reverse=True)) + r")",
+        re.IGNORECASE
+    )
 
     highlighted = pattern.sub(
         lambda m: f"<mark>{m.group()}</mark>",
@@ -100,25 +116,39 @@ def home():
 
         for item in all_listings:
             # searchable_text = f"{item['title']} {item['category']}"
-            searchable_text = f"""
-                {item['title']}
-                {item['category']}
-                {item['price']}
-                """.lower()
+            searchable_fields = [
+                item['title'],
+                item['category'],
+                item['price'],
+                item['phone']
+                ]
+            matched = False
 
-            phone = item['phone']
+            for field in searchable_fields:
 
-            similarity = difflib.SequenceMatcher(
-                None,
-                search.lower(),
-                searchable_text
-                ).ratio()
+                words = field.lower().split()
 
-            if (
-                search.lower() in searchable_text
-                or search in phone
-                or similarity > 0.45
-                ):
+                for word in words:
+                    clean_search = re.sub(r'[^a-zA-Z0-9]', '', search.lower())
+                    clean_word = re.sub(r'[^a-zA-Z0-9]', '', word.lower())
+
+                    similarity = difflib.SequenceMatcher(
+                        None,
+                        clean_search,
+                        clean_word
+                    ).ratio()
+
+                    if (
+                        clean_search in clean_word
+                        or similarity > 0.50
+                    ):
+                        matched = True
+                        break
+
+                if matched:
+                    break
+
+            if matched:
                 filtered.append(item)
 
         listings = filtered
