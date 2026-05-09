@@ -59,6 +59,7 @@
                 {% if item['image'] %}
                     <img src="{{ url_for('static', filename='uploads/' + item['image']) }}" width="200">
                 {% endif %}
+                <p>{{ item['description'][:120] }}...</p>
                 {% if item['days_left'] < 0 %}
                     <p>Expired {{ (item['days_left'] * -1) }} day(s) ago</p>
                     <span style="color:gray;"><small>expired</small></span>

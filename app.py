@@ -62,7 +62,8 @@ def init_db():
             price TEXT,
             category TEXT,
             phone TEXT,
-            leave_date TEXT, 
+            leave_date TEXT,
+            description TEXT, 
             image TEXT,      
             is_featured INTEGER DEFAULT 0
             )
@@ -120,7 +121,8 @@ def home():
                 item['title'],
                 item['category'],
                 item['price'],
-                item['phone']
+                item['phone'],
+                item['description']
                 ]
             matched = False
 
@@ -178,6 +180,7 @@ def home():
             "category": item["category"],
             "phone": item["phone"],
             "leave_date": item["leave_date"],
+            " ": item["description"],
             "image": item["image"],
             "is_featured": item["is_featured"],
             "days_left": days_left
@@ -191,6 +194,7 @@ def add_listing():
     cursor=conn.cursor()
 
     image = request.files['image']
+    description = request.form['description']
     # filename = secure_filename(image.filename)
     filename = str(uuid.uuid4()) + "_" + secure_filename(image.filename)
     image.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
@@ -209,7 +213,7 @@ def add_listing():
     # phone = request.form['phone'].replace('+', '').replace(' ', '')  # Remove + and spaces from phone number
     is_featured = 1 if 'featured' in request.form else 0
 
-    cursor.execute("INSERT INTO listings (title, price, category, phone, leave_date, image, is_featured) VALUES (?, ?, ?, ?, ?, ?, ?)", (title, price, category, phone, leave_date, filename, is_featured))
+    cursor.execute("INSERT INTO listings (title, price, category, phone, leave_date, description, image, is_featured) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (title, price, category, phone, leave_date, description, filename, is_featured))
 
     conn.commit()
     conn.close()
