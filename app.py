@@ -94,9 +94,11 @@ def home():
                 title LIKE ?
                 OR category LIKE ?
                 OR price LIKE ?
+                OR phone LIKE ?
+                OR description LIKE ?
             )
             ORDER BY is_featured DESC, id DESC
-            """, (category, query, query, query))
+            """, (category, query, query, query, query, query))
 
     elif category:
         cursor.execute("""
@@ -127,6 +129,8 @@ def home():
             matched = False
 
             for field in searchable_fields:
+                if field is None:
+                    continue
 
                 words = field.lower().split()
 
@@ -180,7 +184,7 @@ def home():
             "category": item["category"],
             "phone": item["phone"],
             "leave_date": item["leave_date"],
-            " ": item["description"],
+            "description": item["description"] or "",
             "image": item["image"],
             "is_featured": item["is_featured"],
             "days_left": days_left
@@ -194,7 +198,7 @@ def add_listing():
     cursor=conn.cursor()
 
     image = request.files['image']
-    description = request.form['description']
+    description = request.form['description'].strip()
     # filename = secure_filename(image.filename)
     filename = str(uuid.uuid4()) + "_" + secure_filename(image.filename)
     image.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
@@ -252,8 +256,12 @@ def update_listing(id):
     title = request.form['title']
     price = request.form['price']
     phone = request.form['phone']
+    description = request.form['description'].strip()
 
-    cursor.execute("UPDATE listings SET title = ?, price = ?, phone = ? WHERE id = ?", (title, price, phone, id))
+    cursor.execute(
+        "UPDATE listings SET title = ?, price = ?, phone = ?, description = ? WHERE id = ?",
+        (title, price, phone, description, id)
+    )
     conn.commit()
     conn.close()
 

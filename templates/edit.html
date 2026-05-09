@@ -10,6 +10,7 @@
         <input type="text" name="title" value="{{ listing['title'] }}" required><br><br>
         <input type="text" name="price" value="{{ listing['price'] }}" required><br><br>
         <input type="text" name="phone" value="{{ listing['phone'] }}" required><br><br>
+        <textarea name="description" rows="5" cols="40" required>{{ listing['description'] or '' }}</textarea><br><br>
         <button type="submit">Update Listing</button>
     </form>
 </body>
