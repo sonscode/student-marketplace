@@ -6,10 +6,11 @@
 <body>
 
 <h1>Add New Listing</h1>
-  <form method="POST" action="/add ">
+  <form method="POST" action="/add" enctype="multipart/form-data">
             <input type="text" name="title" placeholder="Item name" required>
             <input type="text" name="price" placeholder="Item price" required>
             <input type="text" name="phone" placeholder="Phone number" required>
+            <input type="file" name="image" required><br><br>
             <br><label>Leaving date:</label><br>
             <input type="date" name="leave_date" required><br><br>
             <select name="category" required>

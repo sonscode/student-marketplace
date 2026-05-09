@@ -1,9 +1,15 @@
+import os
 import re
+import uuid
 from flask import Flask, render_template, request, redirect
 from datetime import datetime
+from werkzeug.utils import secure_filename
 import sqlite3
 
 app = Flask(__name__)
+UPLOAD_FOLDER = os.path.join(app.root_path, 'static', 'uploads')
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 #connecting to DB
 def get_db():
@@ -22,7 +28,8 @@ def init_db():
             price TEXT,
             category TEXT,
             phone TEXT,
-            leave_date TEXT,       
+            leave_date TEXT, 
+            image TEXT,      
             is_featured INTEGER DEFAULT 0
             )
     """)
@@ -61,6 +68,7 @@ def home():
             "category": item["category"],
             "phone": item["phone"],
             "leave_date": item["leave_date"],
+            "image": item["image"],
             "is_featured": item["is_featured"],
             "days_left": days_left
         })
@@ -71,6 +79,11 @@ def home():
 def add_listing():
     conn=get_db()
     cursor=conn.cursor()
+
+    image = request.files['image']
+    # filename = secure_filename(image.filename)
+    filename = str(uuid.uuid4()) + "_" + secure_filename(image.filename)
+    image.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
 
     raw_phone = request.form['phone']
     phone = re.sub(r'\D', '', raw_phone)
@@ -86,7 +99,7 @@ def add_listing():
     # phone = request.form['phone'].replace('+', '').replace(' ', '')  # Remove + and spaces from phone number
     is_featured = 1 if 'featured' in request.form else 0
 
-    cursor.execute("INSERT INTO listings (title, price, category, phone, leave_date, is_featured) VALUES (?, ?, ?, ?, ?, ?)", (title, price, category, phone, leave_date, is_featured))
+    cursor.execute("INSERT INTO listings (title, price, category, phone, leave_date, image, is_featured) VALUES (?, ?, ?, ?, ?, ?, ?)", (title, price, category, phone, leave_date, filename, is_featured))
 
     conn.commit()
     conn.close()
@@ -97,10 +110,40 @@ def add_listing():
 def create():
     return render_template('create-listing.html')
 
-    # listings = [
-    #     {'title': 'Bed', 'price': '20000 XAF'},
-    #     {'title': 'Gas cooker', 'price': '15000 XAF'},
-    #     {'title': 'Study table', 'price': '10000 XAF'}
-    # ]
+@app.route('/delete/<int:id>', methods=['POST'])
+def delete_listing(id):
+    conn=get_db()
+    cursor=conn.cursor()
+    cursor.execute("DELETE FROM listings WHERE id = ?", (id,))
+    conn.commit()
+    conn.close()
+    return redirect('/')
+
+@app.route('/edit/<int:id>', methods=['GET', 'POST'])
+def edit_listing(id):
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM listings WHERE id = ?", (id,))
+    listing = cursor.fetchone()
+    conn.close()
+
+    return render_template('edit.html', listing=listing)
+
+@app.route('/update/<int:id>', methods=['POST'])
+def update_listing(id):
+    conn = get_db()
+    cursor = conn.cursor()
+
+    title = request.form['title']
+    price = request.form['price']
+    phone = request.form['phone']
+
+    cursor.execute("UPDATE listings SET title = ?, price = ?, phone = ? WHERE id = ?", (title, price, phone, id))
+    conn.commit()
+    conn.close()
+
+    return redirect('/')
+
 if __name__ == '__main__':
     app.run(debug=True)

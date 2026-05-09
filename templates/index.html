@@ -50,6 +50,9 @@
                         {% endif %}
                 </h2>
                 <p>Price: {{ item['price'] }}</p>
+                {% if item['image'] %}
+                    <img src="{{ url_for('static', filename='uploads/' + item['image']) }}" width="200">
+                {% endif %}
                 {% if item['days_left'] < 0 %}
                     <p>Expired {{ (item['days_left'] * -1) }} day(s) ago</p>
                     <span style="color:gray;"><small>expired</small></span>
@@ -64,6 +67,16 @@
                     <button>Contact on WhatsApp</button>
                 </a>
                 <p>Category: {{ item['category'] }}</p>
+
+<!-- Edit and delete -->
+
+                <a href="/edit/{{ item['id'] }}">
+                    <button>Edit</button>
+                </a>
+                <form method="POST" action="/delete/{{ item['id'] }}" onsubmit="return confirm('Are you sure you want to delete this listing?');">
+                    <button type="submit">Delete</button>
+                </form>
+                 
             </div>
         {% endfor %}
     </body>

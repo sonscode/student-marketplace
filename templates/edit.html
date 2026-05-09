@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Edit Listing</title>
+</head>
+<body>
+    <h1>Edit Listing</h1>
+
+    <form method="POST" action="/update/{{ listing['id'] }}">
+        <input type="text" name="title" value="{{ listing['title'] }}" required><br><br>
+        <input type="text" name="price" value="{{ listing['price'] }}" required><br><br>
+        <input type="text" name="phone" value="{{ listing['phone'] }}" required><br><br>
+        <button type="submit">Update Listing</button>
+    </form>
+</body>
+</html>
