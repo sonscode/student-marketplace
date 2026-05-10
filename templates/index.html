@@ -88,6 +88,12 @@
             color: white;
         }
 
+        .btn.google {
+            border-color: #d8e2ff;
+            background: #f5f8ff;
+            color: #1e3a8a;
+        }
+
         .controls {
             display: grid;
             gap: 12px;
@@ -375,13 +381,16 @@
                 {% else %}
                     <a class="btn" href="{{ url_for('register') }}">Create Account</a>
                     <a class="btn" href="{{ url_for('login') }}">Login</a>
+                    {% if google_oauth_enabled %}
+                        <a class="btn google" href="{{ url_for('login_google', next=url_for('home')) }}">Continue with Google</a>
+                    {% endif %}
                     <a class="btn primary" href="{{ url_for('login', next=url_for('create')) }}">+ Add New Listing</a>
                 {% endif %}
             </div>
         </section>
 
         {% if is_logged_in %}
-            <p class="auth-status">Logged in as <strong>{{ current_user['full_name'] }}</strong> ({{ current_user['phone'] }}). You can edit and delete only your own listings.</p>
+            <p class="auth-status">Logged in as <strong>{{ current_user['full_name'] }}</strong> ({{ current_user['email'] or current_user['phone'] }}). You can edit and delete only your own listings.</p>
         {% else %}
             <p class="auth-status">You are browsing as a guest. Login to create listings and manage your own posts.</p>
         {% endif %}

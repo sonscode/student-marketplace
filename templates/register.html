@@ -158,10 +158,24 @@
             background: linear-gradient(135deg, #ea6f45, var(--brand));
         }
 
+        .btn.google {
+            color: #1e3a8a;
+            border: 1px solid #d8e2ff;
+            background: #f5f8ff;
+        }
+
         .btn.ghost {
             color: #2f3641;
             border: 1px solid var(--line);
             background: #fff;
+        }
+
+        .or {
+            margin: 2px 0 0;
+            color: var(--muted);
+            font-size: 0.83rem;
+            text-align: center;
+            font-weight: 700;
         }
 
         .helper {
@@ -225,6 +239,10 @@
                     <a class="btn ghost" href="{{ url_for('home') }}">Cancel</a>
                 </div>
             </form>
+            {% if google_oauth_enabled %}
+                <p class="or">OR</p>
+                <a class="btn google" href="{{ url_for('login_google', next=url_for('home')) }}">Continue with Google</a>
+            {% endif %}
             <p class="helper">Already have an account? <a href="{{ url_for('login') }}">Login</a></p>
         </section>
     </main>

@@ -232,7 +232,7 @@
 <body>
     <main class="page">
         <a class="back" href="{{ url_for('home') }}">⬅ Back to Listings</a>
-        <p class="auth-status">Posting as <strong>{{ current_user['full_name'] }}</strong> ({{ current_user['phone'] }}).</p>
+        <p class="auth-status">Posting as <strong>{{ current_user['full_name'] }}</strong> ({{ current_user['email'] or current_user['phone'] }}).</p>
 
         <section class="card">
             <h1>Add New Listing</h1>

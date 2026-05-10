@@ -224,7 +224,7 @@
             <a class="nav" href="{{ url_for('listing_detail', id=listing['id']) }}">View Listing</a>
         </div>
 
-        <p class="auth-status">Logged in as <strong>{{ current_user['full_name'] }}</strong> ({{ current_user['phone'] }})</p>
+        <p class="auth-status">Logged in as <strong>{{ current_user['full_name'] }}</strong> ({{ current_user['email'] or current_user['phone'] }})</p>
 
         <section class="card">
             <h1>Edit Listing</h1>

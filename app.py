@@ -2,6 +2,7 @@ import os
 import re
 import uuid
 import difflib
+import hashlib
 from datetime import datetime
 from functools import wraps
 
@@ -10,10 +11,37 @@ from flask import Flask, render_template, request, redirect, url_for, session
 from markupsafe import Markup
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
+from flask_dance.contrib.google import make_google_blueprint, google
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-this")
+app.config["GOOGLE_OAUTH_CLIENT_ID"] = (
+    os.environ.get("GOOGLE_OAUTH_CLIENT_ID")
+    or os.environ.get("GOOGLE_CLIENT_ID")
+    or ""
+)
+app.config["GOOGLE_OAUTH_CLIENT_SECRET"] = (
+    os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET")
+    or os.environ.get("GOOGLE_CLIENT_SECRET")
+    or ""
+)
+GOOGLE_OAUTH_ENABLED = bool(
+    app.config["GOOGLE_OAUTH_CLIENT_ID"] and app.config["GOOGLE_OAUTH_CLIENT_SECRET"]
+)
 
+if GOOGLE_OAUTH_ENABLED:
+    google_bp = make_google_blueprint(
+        client_id=app.config["GOOGLE_OAUTH_CLIENT_ID"],
+        client_secret=app.config["GOOGLE_OAUTH_CLIENT_SECRET"],
+        scope=[
+            "openid",
+            "https://www.googleapis.com/auth/userinfo.email",
+            "https://www.googleapis.com/auth/userinfo.profile",
+        ],
+        reprompt_select_account=True,
+        redirect_to="google_authorized",
+    )
+    app.register_blueprint(google_bp, url_prefix="/login")
 
 @app.template_filter("highlight")
 def highlight(text, search):
@@ -63,8 +91,34 @@ def normalize_phone(raw_phone):
     return phone
 
 
+def normalize_email(raw_email):
+    if not raw_email:
+        return ""
+    return raw_email.strip().lower()
+
+
+def get_session_user_id():
+    raw_user_id = session.get("user_id")
+    if raw_user_id is None:
+        return None
+
+    try:
+        return int(raw_user_id)
+    except (TypeError, ValueError):
+        session.pop("user_id", None)
+        return None
+
+
 def get_session_phone():
-    return normalize_phone(session.get("user_phone"))
+    user_phone = normalize_phone(session.get("user_phone"))
+    if user_phone:
+        return user_phone
+
+    user = current_user_record()
+    if user:
+        return normalize_phone(user.get("phone"))
+
+    return ""
 
 
 def sanitize_next_url(next_url):
@@ -73,29 +127,72 @@ def sanitize_next_url(next_url):
     return next_url
 
 
+def set_user_session(user_row):
+    session["user_id"] = int(user_row["id"])
+    session["user_name"] = user_row["full_name"]
+    session["user_phone"] = user_row["phone"]
+
+
+def clear_user_session():
+    session.pop("user_id", None)
+    session.pop("user_phone", None)
+    session.pop("user_name", None)
+
+
+def make_google_phone_candidate(google_sub, salt=0):
+    seed = f"google:{google_sub}:{salt}".encode("utf-8")
+    digest = hashlib.sha256(seed).hexdigest()
+    numeric = "".join(str(int(ch, 16) % 10) for ch in digest)
+    return "88" + numeric[:10]
+
+
+def generate_unique_google_phone(cursor, google_sub):
+    for salt in range(0, 1000):
+        candidate = make_google_phone_candidate(google_sub, salt=salt)
+        cursor.execute("SELECT id FROM users WHERE phone = ?", (candidate,))
+        existing = cursor.fetchone()
+        if existing is None:
+            return candidate
+    raise RuntimeError("Unable to generate a unique phone seed for Google OAuth user")
+
+
 def current_user_record():
-    user_phone = get_session_phone()
-    if not user_phone:
-        return None
+    user_id = get_session_user_id()
+    user_phone = normalize_phone(session.get("user_phone"))
 
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute(
-        "SELECT id, full_name, phone, created_at FROM users WHERE phone = ?",
-        (user_phone,),
-    )
-    row = cursor.fetchone()
-    conn.close()
+
+    row = None
+    if user_id is not None:
+        cursor.execute(
+            "SELECT id, full_name, phone, email, google_sub, auth_provider, created_at FROM users WHERE id = ?",
+            (user_id,),
+        )
+        row = cursor.fetchone()
+
+    if row is None and user_phone:
+        cursor.execute(
+            "SELECT id, full_name, phone, email, google_sub, auth_provider, created_at FROM users WHERE phone = ?",
+            (user_phone,),
+        )
+        row = cursor.fetchone()
 
     if row is None:
-        session.pop("user_phone", None)
-        session.pop("user_name", None)
+        conn.close()
+        clear_user_session()
         return None
+
+    set_user_session(row)
+    conn.close()
 
     return {
         "id": row["id"],
         "full_name": row["full_name"],
         "phone": row["phone"],
+        "email": row["email"] or "",
+        "google_sub": row["google_sub"] or "",
+        "auth_provider": row["auth_provider"] or "local",
         "created_at": row["created_at"],
     }
 
@@ -106,6 +203,7 @@ def inject_auth():
     return {
         "current_user": user,
         "is_logged_in": user is not None,
+        "google_oauth_enabled": GOOGLE_OAUTH_ENABLED,
     }
 
 
@@ -158,10 +256,27 @@ def init_db():
             full_name TEXT NOT NULL,
             phone TEXT NOT NULL UNIQUE,
             password_hash TEXT NOT NULL,
+            email TEXT,
+            google_sub TEXT,
+            auth_provider TEXT NOT NULL DEFAULT 'local',
             created_at TEXT NOT NULL
         )
         """
     )
+
+    cursor.execute("PRAGMA table_info(users)")
+    user_columns = [row[1] for row in cursor.fetchall()]
+
+    if "email" not in user_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN email TEXT")
+    if "google_sub" not in user_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN google_sub TEXT")
+    if "auth_provider" not in user_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN auth_provider TEXT DEFAULT 'local'")
+
+    cursor.execute("UPDATE users SET auth_provider = 'local' WHERE auth_provider IS NULL OR auth_provider = ''")
+    cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique ON users(email)")
+    cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub_unique ON users(google_sub)")
 
     conn.commit()
     conn.close()
@@ -296,7 +411,7 @@ def home():
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
-    if get_session_phone():
+    if current_user_record():
         return redirect(url_for("home"))
 
     error = ""
@@ -329,12 +444,17 @@ def register():
                 password_hash = generate_password_hash(password)
                 created_at = datetime.utcnow().isoformat(timespec="seconds")
                 cursor.execute(
-                    "INSERT INTO users (full_name, phone, password_hash, created_at) VALUES (?, ?, ?, ?)",
-                    (full_name, phone_input, password_hash, created_at),
+                    """
+                    INSERT INTO users (full_name, phone, password_hash, email, google_sub, auth_provider, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (full_name, phone_input, password_hash, None, None, "local", created_at),
                 )
                 conn.commit()
-                session["user_phone"] = phone_input
-                session["user_name"] = full_name
+                cursor.execute("SELECT * FROM users WHERE phone = ?", (phone_input,))
+                created_user = cursor.fetchone()
+                if created_user is not None:
+                    set_user_session(created_user)
 
             conn.close()
 
@@ -352,7 +472,7 @@ def register():
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    if get_session_phone():
+    if current_user_record():
         return redirect(url_for("home"))
 
     error = ""
@@ -369,11 +489,14 @@ def login():
         user = cursor.fetchone()
         conn.close()
 
-        if user is None or not check_password_hash(user["password_hash"], password):
+        if user is None:
+            error = "Invalid phone or password."
+        elif user["auth_provider"] == "google":
+            error = "This account uses Google login. Use Continue with Google."
+        elif not check_password_hash(user["password_hash"], password):
             error = "Invalid phone or password."
         else:
-            session["user_phone"] = user["phone"]
-            session["user_name"] = user["full_name"]
+            set_user_session(user)
             return redirect(next_url)
 
     return render_template("login.html", error=error, phone=phone_input, next=next_url)
@@ -381,14 +504,103 @@ def login():
 
 @app.route("/logout", methods=["POST"])
 def logout():
-    session.clear()
+    clear_user_session()
+    session.pop("oauth_next", None)
+    session.pop("google_oauth_token", None)
     return redirect(url_for("home"))
 
+@app.route("/login/google")
+def login_google():
+    if current_user_record():
+        return redirect(url_for("home"))
+
+    if not GOOGLE_OAUTH_ENABLED:
+        return "Google OAuth is not configured yet. Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET.", 503
+
+    next_url = sanitize_next_url(request.args.get("next") or url_for("home"))
+    session["oauth_next"] = next_url
+    return redirect(url_for("google.login"))
+
+
+@app.route("/oauth/google/authorized")
+def google_authorized():
+    if not GOOGLE_OAUTH_ENABLED:
+        return "Google OAuth is not configured yet. Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET.", 503
+
+    if not google.authorized:
+        return redirect(url_for("google.login"))
+
+    resp = google.get("/oauth2/v2/userinfo")
+    if not resp.ok:
+        return "Failed to fetch Google profile information.", 400
+
+    profile = resp.json()
+    google_sub = str(profile.get("id") or profile.get("sub") or "").strip()
+    email = normalize_email(profile.get("email")) or None
+    full_name = (profile.get("name") or "").strip() or (email.split("@")[0] if email else "Google User")
+
+    if not google_sub and not email:
+        return "Google account data is incomplete. Please try again.", 400
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    user = None
+    if google_sub:
+        cursor.execute("SELECT * FROM users WHERE google_sub = ?", (google_sub,))
+        user = cursor.fetchone()
+
+    if user is None and email:
+        cursor.execute("SELECT * FROM users WHERE lower(email) = lower(?)", (email,))
+        user = cursor.fetchone()
+
+    if user is None:
+        phone_seed = generate_unique_google_phone(cursor, google_sub or email)
+        created_at = datetime.utcnow().isoformat(timespec="seconds")
+        password_hash = generate_password_hash(uuid.uuid4().hex)
+        cursor.execute(
+            """
+            INSERT INTO users (full_name, phone, password_hash, email, google_sub, auth_provider, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (full_name, phone_seed, password_hash, email, google_sub or None, "google", created_at),
+        )
+        conn.commit()
+        cursor.execute("SELECT * FROM users WHERE id = ?", (cursor.lastrowid,))
+        user = cursor.fetchone()
+    else:
+        updated_name = full_name or user["full_name"]
+        updated_email = email if email is not None else user["email"]
+        updated_google_sub = google_sub or user["google_sub"]
+        updated_provider = "google"
+
+        cursor.execute(
+            """
+            UPDATE users
+            SET full_name = ?, email = ?, google_sub = ?, auth_provider = ?
+            WHERE id = ?
+            """,
+            (updated_name, updated_email, updated_google_sub, updated_provider, user["id"]),
+        )
+        conn.commit()
+        cursor.execute("SELECT * FROM users WHERE id = ?", (user["id"],))
+        user = cursor.fetchone()
+
+    conn.close()
+
+    if user is None:
+        return "Unable to complete Google sign-in. Please try again.", 500
+
+    set_user_session(user)
+    next_url = sanitize_next_url(session.pop("oauth_next", url_for("home")))
+    return redirect(next_url)
 
 @app.route("/create")
 @login_required
 def create():
-    return render_template("create-listing.html", user_phone=get_session_phone())
+    user = current_user_record()
+    phone_prefill = user["phone"] if user and user.get("auth_provider") != "google" else ""
+    return render_template("create-listing.html", user_phone=phone_prefill)
 
 
 @app.route("/add", methods=["POST"])

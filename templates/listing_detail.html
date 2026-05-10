@@ -365,7 +365,7 @@
         </div>
 
         {% if is_logged_in %}
-            <p class="auth-status">Logged in as <strong>{{ current_user['full_name'] }}</strong> ({{ current_user['phone'] }}).</p>
+            <p class="auth-status">Logged in as <strong>{{ current_user['full_name'] }}</strong> ({{ current_user['email'] or current_user['phone'] }}).</p>
         {% else %}
             <p class="auth-status">Browsing as guest. Login to manage your own listings.</p>
         {% endif %}
