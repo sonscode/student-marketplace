@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #f7f4ec;
+            --card: #ffffff;
+            --text: #1b1d20;
+            --muted: #60656f;
+            --line: #ded8ca;
+            --brand: #d0562d;
+            --soft: #fcfbf8;
+            --danger-bg: #fff3f3;
+            --danger-line: #f2c8c9;
+            --danger-text: #a31f23;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: "Manrope", "Segoe UI", sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at 10% 0%, #fff2d7 0, transparent 28%),
+                radial-gradient(circle at 90% 10%, #ffe7dd 0, transparent 24%),
+                var(--bg);
+            min-height: 100vh;
+        }
+
+        .page {
+            width: min(700px, 92vw);
+            margin: 34px auto 48px;
+        }
+
+        .back {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            text-decoration: none;
+            color: #2f3641;
+            border: 1px solid var(--line);
+            background: #fff;
+            padding: 9px 12px;
+            border-radius: 10px;
+            font-weight: 700;
+            margin-bottom: 14px;
+        }
+
+        .card {
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            background: var(--card);
+            padding: 20px;
+            display: grid;
+            gap: 14px;
+            animation: rise 0.24s ease both;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: clamp(1.4rem, 2.4vw, 1.95rem);
+            letter-spacing: -0.02em;
+        }
+
+        .subtitle {
+            margin: 0;
+            color: var(--muted);
+            font-size: 0.94rem;
+        }
+
+        .msg {
+            border-radius: 12px;
+            padding: 10px 12px;
+            font-size: 0.92rem;
+            border: 1px solid var(--danger-line);
+            background: var(--danger-bg);
+            color: var(--danger-text);
+        }
+
+        form {
+            display: grid;
+            gap: 12px;
+        }
+
+        .field {
+            display: grid;
+            gap: 6px;
+        }
+
+        label {
+            font-size: 0.83rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            color: #2d333d;
+        }
+
+        input {
+            width: 100%;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 10px 12px;
+            font: inherit;
+            color: var(--text);
+            background: var(--soft);
+            outline: none;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        input:focus {
+            border-color: #d68868;
+            box-shadow: 0 0 0 3px rgba(208, 86, 45, 0.15);
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 4px;
+        }
+
+        .btn {
+            border: 0;
+            border-radius: 12px;
+            padding: 10px 14px;
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn.primary {
+            color: #fff;
+            background: linear-gradient(135deg, #ea6f45, var(--brand));
+        }
+
+        .btn.ghost {
+            color: #2f3641;
+            border: 1px solid var(--line);
+            background: #fff;
+        }
+
+        .helper {
+            color: var(--muted);
+            font-size: 0.86rem;
+            margin: 0;
+        }
+
+        @keyframes rise {
+            from {
+                opacity: 0;
+                transform: translateY(6px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="page">
+        <a class="back" href="{{ url_for('home') }}">⬅ Back to Listings</a>
+
+        <section class="card">
+            <h1>Login</h1>
+            <p class="subtitle">Sign in to manage your listings.</p>
+
+            {% if error %}
+                <div class="msg">{{ error }}</div>
+            {% endif %}
+
+            <form method="POST" action="{{ url_for('login') }}">
+                <input type="hidden" name="next" value="{{ next }}">
+
+                <div class="field">
+                    <label for="phone">Phone Number</label>
+                    <input id="phone" type="text" name="phone" value="{{ phone or '' }}" placeholder="e.g. 676210234" required>
+                </div>
+
+                <div class="field">
+                    <label for="password">Password</label>
+                    <input id="password" type="password" name="password" minlength="6" required>
+                </div>
+
+                <div class="actions">
+                    <button class="btn primary" type="submit">Login</button>
+                    <a class="btn ghost" href="{{ url_for('home') }}">Cancel</a>
+                </div>
+            </form>
+
+            <p class="helper">New here? <a href="{{ url_for('register') }}">Create account</a></p>
+        </section>
+    </main>
+</body>
+</html>

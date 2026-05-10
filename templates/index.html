@@ -49,6 +49,13 @@
             margin-bottom: 18px;
         }
 
+        .header-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
         h1 {
             margin: 0;
             font-size: clamp(1.45rem, 2.2vw, 2rem);
@@ -89,7 +96,7 @@
 
         .search {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+            grid-template-columns: minmax(0, 1fr) auto;
             gap: 8px;
             background: var(--card);
             border: 1px solid var(--line);
@@ -259,6 +266,15 @@
             font-size: 0.82rem;
         }
 
+        .inline-form {
+            margin: 0;
+        }
+
+        .inline-form .btn {
+            font: inherit;
+            cursor: pointer;
+        }
+
         .empty {
             background: #fff;
             border: 1px dashed var(--line);
@@ -305,13 +321,24 @@
     <main class="page">
         <section class="header">
             <h1>Available Listings</h1>
-            <a class="btn primary" href="{{ url_for('create', user_phone=user_phone) }}">+ Add New Listing</a>
+            <div class="header-actions">
+                {% if is_logged_in %}
+                    <span class="btn">Hi, {{ current_user['full_name'] }}</span>
+                    <form class="inline-form" method="POST" action="{{ url_for('logout') }}">
+                        <button class="btn" type="submit">Logout</button>
+                    </form>
+                    <a class="btn primary" href="{{ url_for('create') }}">+ Add New Listing</a>
+                {% else %}
+                    <a class="btn" href="{{ url_for('register') }}">Create Account</a>
+                    <a class="btn" href="{{ url_for('login') }}">Login</a>
+                    <a class="btn primary" href="{{ url_for('login', next=url_for('create')) }}">+ Add New Listing</a>
+                {% endif %}
+            </div>
         </section>
 
         <section class="controls">
             <form class="search" action="/" method="get">
                 <input type="text" name="search" placeholder="Search title, description, category..." value="{{ request.args.get('search', '') }}">
-                <input type="text" name="user_phone" placeholder="Your phone (to manage your listings)" value="{{ user_phone or '' }}">
                 {% if request.args.get('category') %}
                     <input type="hidden" name="category" value="{{ request.args.get('category') }}">
                 {% endif %}
@@ -321,13 +348,13 @@
             {% set active_category = request.args.get('category') %}
             {% set active_search = request.args.get('search') %}
             <div class="chips">
-                <a class="chip {% if not active_category %}active{% endif %}" href="{{ url_for('home', search=active_search, user_phone=user_phone) }}">All</a>
-                <a class="chip {% if active_category == 'Furniture' %}active{% endif %}" href="{{ url_for('home', category='Furniture', search=active_search, user_phone=user_phone) }}">Furniture</a>
-                <a class="chip {% if active_category == 'Kitchen' %}active{% endif %}" href="{{ url_for('home', category='Kitchen', search=active_search, user_phone=user_phone) }}">Kitchen</a>
-                <a class="chip {% if active_category == 'Electronics' %}active{% endif %}" href="{{ url_for('home', category='Electronics', search=active_search, user_phone=user_phone) }}">Electronics</a>
-                <a class="chip {% if active_category == 'Room' %}active{% endif %}" href="{{ url_for('home', category='Room', search=active_search, user_phone=user_phone) }}">Room</a>
-                <a class="chip {% if active_category == 'Clothing' %}active{% endif %}" href="{{ url_for('home', category='Clothing', search=active_search, user_phone=user_phone) }}">Clothing</a>
-                <a class="chip {% if active_category == 'Other' %}active{% endif %}" href="{{ url_for('home', category='Other', search=active_search, user_phone=user_phone) }}">Other</a>
+                <a class="chip {% if not active_category %}active{% endif %}" href="{{ url_for('home', search=active_search) }}">All</a>
+                <a class="chip {% if active_category == 'Furniture' %}active{% endif %}" href="{{ url_for('home', category='Furniture', search=active_search) }}">Furniture</a>
+                <a class="chip {% if active_category == 'Kitchen' %}active{% endif %}" href="{{ url_for('home', category='Kitchen', search=active_search) }}">Kitchen</a>
+                <a class="chip {% if active_category == 'Electronics' %}active{% endif %}" href="{{ url_for('home', category='Electronics', search=active_search) }}">Electronics</a>
+                <a class="chip {% if active_category == 'Room' %}active{% endif %}" href="{{ url_for('home', category='Room', search=active_search) }}">Room</a>
+                <a class="chip {% if active_category == 'Clothing' %}active{% endif %}" href="{{ url_for('home', category='Clothing', search=active_search) }}">Clothing</a>
+                <a class="chip {% if active_category == 'Other' %}active{% endif %}" href="{{ url_for('home', category='Other', search=active_search) }}">Other</a>
             </div>
         </section>
 
@@ -337,7 +364,7 @@
                     <article class="card">
                         <div class="card-body">
                             <h2>
-                                <a href="{{ url_for('listing_detail', id=item['id'], category=request.args.get('category'), search=request.args.get('search'), user_phone=user_phone) }}">
+                                <a href="{{ url_for('listing_detail', id=item['id'], category=request.args.get('category'), search=request.args.get('search')) }}">
                                     {{ item['title'] | highlight(search) }}
                                 </a>
                             </h2>
@@ -366,14 +393,13 @@
                             </div>
 
                             <div class="actions">
-                                <a class="action-link" href="{{ url_for('listing_detail', id=item['id'], category=request.args.get('category'), search=request.args.get('search'), user_phone=user_phone) }}">View Details</a>
+                                <a class="action-link" href="{{ url_for('listing_detail', id=item['id'], category=request.args.get('category'), search=request.args.get('search')) }}">View Details</a>
                                 {% if item['can_manage'] %}
-                                    <a class="action-link" href="{{ url_for('edit_listing', id=item['id'], user_phone=user_phone) }}">Edit</a>
+                                    <a class="action-link" href="{{ url_for('edit_listing', id=item['id']) }}">Edit</a>
                                     <form method="POST" action="{{ url_for('delete_listing', id=item['id']) }}" onsubmit="return confirm('Are you sure you want to delete this listing?');">
-                                        <input type="hidden" name="user_phone" value="{{ user_phone }}">
                                         <button class="action-btn delete" type="submit">Delete</button>
                                     </form>
-                                {% elif user_phone %}
+                                {% elif is_logged_in %}
                                     <span class="owner-note">Owner-only controls hidden</span>
                                 {% endif %}
                             </div>

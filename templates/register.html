@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Edit Listing</title>
+    <title>Create Account</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
@@ -16,6 +16,12 @@
             --line: #ded8ca;
             --brand: #d0562d;
             --soft: #fcfbf8;
+            --danger-bg: #fff3f3;
+            --danger-line: #f2c8c9;
+            --danger-text: #a31f23;
+            --ok-bg: #eefaf3;
+            --ok-line: #bbe9cd;
+            --ok-text: #1d6f3a;
         }
 
         * {
@@ -34,18 +40,11 @@
         }
 
         .page {
-            width: min(780px, 92vw);
+            width: min(720px, 92vw);
             margin: 34px auto 48px;
         }
 
-        .topbar {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-bottom: 14px;
-        }
-
-        .nav {
+        .back {
             display: inline-flex;
             align-items: center;
             gap: 6px;
@@ -56,6 +55,7 @@
             padding: 9px 12px;
             border-radius: 10px;
             font-weight: 700;
+            margin-bottom: 14px;
         }
 
         .card {
@@ -63,25 +63,45 @@
             border-radius: 18px;
             background: var(--card);
             padding: 20px;
+            display: grid;
+            gap: 14px;
             animation: rise 0.24s ease both;
         }
 
         h1 {
             margin: 0;
-            font-size: clamp(1.35rem, 2.4vw, 1.9rem);
+            font-size: clamp(1.4rem, 2.4vw, 1.95rem);
             letter-spacing: -0.02em;
         }
 
         .subtitle {
-            margin: 6px 0 0;
+            margin: 0;
             color: var(--muted);
             font-size: 0.94rem;
         }
 
+        .msg {
+            border-radius: 12px;
+            padding: 10px 12px;
+            font-size: 0.92rem;
+            border: 1px solid;
+        }
+
+        .msg.error {
+            background: var(--danger-bg);
+            border-color: var(--danger-line);
+            color: var(--danger-text);
+        }
+
+        .msg.success {
+            background: var(--ok-bg);
+            border-color: var(--ok-line);
+            color: var(--ok-text);
+        }
+
         form {
-            margin-top: 16px;
             display: grid;
-            gap: 14px;
+            gap: 12px;
         }
 
         .field {
@@ -96,8 +116,7 @@
             color: #2d333d;
         }
 
-        input,
-        textarea {
+        input {
             width: 100%;
             border: 1px solid var(--line);
             border-radius: 12px;
@@ -109,63 +128,16 @@
             transition: border-color 0.15s ease, box-shadow 0.15s ease;
         }
 
-        input:focus,
-        textarea:focus {
+        input:focus {
             border-color: #d68868;
             box-shadow: 0 0 0 3px rgba(208, 86, 45, 0.15);
         }
 
-        input[type="file"] {
-            border: 1.5px dashed #e8c7b7;
-            background: #fff9f6;
-            color: var(--muted);
-            padding: 8px;
-            cursor: pointer;
-        }
-
-        input[type="file"]::file-selector-button {
-            border: 0;
-            border-radius: 999px;
-            padding: 8px 12px;
-            margin-right: 10px;
-            color: #fff;
-            font: inherit;
-            font-weight: 700;
-            background: linear-gradient(135deg, #ea6f45, var(--brand));
-            cursor: pointer;
-            transition: transform 0.15s ease, box-shadow 0.15s ease;
-        }
-
-        input[type="file"]::file-selector-button:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 8px 18px rgba(208, 86, 45, 0.2);
-        }
-
-        textarea {
-            min-height: 150px;
-            resize: vertical;
-        }
-
         .actions {
             display: flex;
-            align-items: center;
             gap: 10px;
-            margin-top: 2px;
-        }
-
-        .preview {
-            border: 1px solid var(--line);
-            border-radius: 12px;
-            background: #fff;
-            padding: 10px;
-        }
-
-        .preview img {
-            width: 100%;
-            max-width: 260px;
-            border-radius: 10px;
-            border: 1px solid var(--line);
-            display: block;
+            flex-wrap: wrap;
+            margin-top: 4px;
         }
 
         .btn {
@@ -192,6 +164,12 @@
             background: #fff;
         }
 
+        .helper {
+            color: var(--muted);
+            font-size: 0.86rem;
+            margin: 0;
+        }
+
         @keyframes rise {
             from {
                 opacity: 0;
@@ -206,53 +184,48 @@
 </head>
 <body>
     <main class="page">
-        <div class="topbar">
-            <a class="nav" href="{{ url_for('home') }}">⬅ Back to Listings</a>
-            <a class="nav" href="{{ url_for('listing_detail', id=listing['id']) }}">View Listing</a>
-        </div>
+        <a class="back" href="{{ url_for('home') }}">⬅ Back to Listings</a>
 
         <section class="card">
-            <h1>Edit Listing</h1>
-            <p class="subtitle">Update the fields below and save your changes.</p>
+            <h1>Create Account</h1>
+            <p class="subtitle">Start by creating your account. Login can come next.</p>
 
-            <form method="POST" action="/update/{{ listing['id'] }}" enctype="multipart/form-data">
-                <div class="field">
-                    <label for="title">Item Name</label>
-                    <input id="title" type="text" name="title" value="{{ listing['title'] }}" required>
-                </div>
+            {% if error %}
+                <div class="msg error">{{ error }}</div>
+            {% endif %}
+            {% if success %}
+                <div class="msg success">{{ success }}</div>
+            {% endif %}
 
+            <form method="POST" action="{{ url_for('register') }}">
                 <div class="field">
-                    <label for="price">Price</label>
-                    <input id="price" type="text" name="price" value="{{ listing['price'] }}" required>
+                    <label for="full_name">Full Name</label>
+                    <input id="full_name" type="text" name="full_name" value="{{ full_name or '' }}" required>
                 </div>
 
                 <div class="field">
                     <label for="phone">Phone Number</label>
-                    <input id="phone" type="text" name="phone" value="{{ listing['phone'] }}" required>
+                    <input id="phone" type="text" name="phone" value="{{ phone or '' }}" placeholder="e.g. 676210234" required>
                 </div>
 
                 <div class="field">
-                    <label for="description">Description</label>
-                    <textarea id="description" name="description" required>{{ listing['description'] or '' }}</textarea>
+                    <label for="password">Password</label>
+                    <input id="password" type="password" name="password" minlength="6" required>
                 </div>
-
-                {% if listing['image'] %}
-                    <div class="field preview">
-                        <label>Current Image</label>
-                        <img src="{{ url_for('static', filename='uploads/' + listing['image']) }}" alt="{{ listing['title'] }}">
-                    </div>
-                {% endif %}
 
                 <div class="field">
-                    <label for="image">Replace Image (optional)</label>
-                    <input id="image" type="file" name="image" accept="image/*">
+                    <label for="confirm_password">Confirm Password</label>
+                    <input id="confirm_password" type="password" name="confirm_password" minlength="6" required>
                 </div>
+
+                <p class="helper">Use this same phone number to manage your listings for now.</p>
 
                 <div class="actions">
-                    <button class="btn primary" type="submit">Save Changes</button>
-                    <a class="btn ghost" href="{{ url_for('listing_detail', id=listing['id']) }}">Cancel</a>
+                    <button class="btn primary" type="submit">Create Account</button>
+                    <a class="btn ghost" href="{{ url_for('home') }}">Cancel</a>
                 </div>
             </form>
+            <p class="helper">Already have an account? <a href="{{ url_for('login') }}">Login</a></p>
         </section>
     </main>
 </body>

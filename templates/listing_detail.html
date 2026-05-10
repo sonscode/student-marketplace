@@ -180,6 +180,137 @@
             background: #fff8f8;
         }
 
+        .related-section {
+            margin-top: 16px;
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            background: var(--card);
+            padding: 16px;
+            display: grid;
+            gap: 12px;
+            animation: rise 0.28s ease both;
+        }
+
+        .section-head {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .section-title {
+            margin: 0;
+            font-size: 1.15rem;
+            letter-spacing: -0.01em;
+        }
+
+        .section-subtitle {
+            margin: 0;
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+
+        .related-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .related-card {
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            background: #fff;
+            overflow: hidden;
+            display: grid;
+        }
+
+        .related-media {
+            width: 100%;
+            height: 128px;
+            object-fit: cover;
+            background: #f3f0e9;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .related-body {
+            padding: 10px;
+            display: grid;
+            gap: 8px;
+        }
+
+        .related-title {
+            margin: 0;
+            font-size: 0.99rem;
+            line-height: 1.35;
+            letter-spacing: -0.01em;
+        }
+
+        .related-title a {
+            color: var(--text);
+            text-decoration: none;
+        }
+
+        .related-meta {
+            margin: 0;
+            color: var(--muted);
+            font-size: 0.86rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .related-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .mini-badge {
+            font-size: 0.72rem;
+            font-weight: 800;
+            border-radius: 999px;
+            padding: 4px 8px;
+            background: #f1ecdf;
+            color: #3b3e44;
+        }
+
+        .mini-badge.featured {
+            background: #ffe5e1;
+            color: var(--featured);
+        }
+
+        .mini-badge.urgent {
+            background: #fff0ec;
+            color: var(--urgent);
+        }
+
+        .related-link {
+            display: inline-flex;
+            width: fit-content;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 7px 10px;
+            text-decoration: none;
+            color: var(--text);
+            font-size: 0.82rem;
+            font-weight: 700;
+            background: #fff;
+        }
+
+        .related-empty {
+            border: 1px dashed var(--line);
+            border-radius: 12px;
+            padding: 14px;
+            color: var(--muted);
+            font-size: 0.9rem;
+            background: #fcfbf8;
+        }
+
         @keyframes rise {
             from {
                 opacity: 0;
@@ -195,13 +326,17 @@
             .grid {
                 grid-template-columns: 1fr;
             }
+
+            .related-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
 <body>
     <main class="page">
         <div class="topbar">
-            <a class="back" href="{{ url_for('home', category=request.args.get('category'), search=request.args.get('search'), user_phone=user_phone) }}">⬅ Back to Listings</a>
+            <a class="back" href="{{ url_for('home', category=request.args.get('category'), search=request.args.get('search')) }}">⬅ Back to Listings</a>
         </div>
 
         <article class="card">
@@ -250,9 +385,8 @@
 
             {% if can_manage %}
                 <section class="owner-actions">
-                    <a class="owner-link" href="{{ url_for('edit_listing', id=item['id'], user_phone=user_phone) }}">Edit Listing</a>
+                    <a class="owner-link" href="{{ url_for('edit_listing', id=item['id']) }}">Edit Listing</a>
                     <form method="POST" action="{{ url_for('delete_listing', id=item['id']) }}" onsubmit="return confirm('Are you sure you want to delete this listing?');">
-                        <input type="hidden" name="user_phone" value="{{ user_phone }}">
                         <button class="owner-btn delete" type="submit">Delete Listing</button>
                     </form>
                 </section>
@@ -261,32 +395,51 @@
             <a class="cta" href="https://wa.me/{{ item['phone'] }}" target="_blank">Contact on WhatsApp</a>
         </article>
 
-        <hr>
+        <section class="related-section">
+            <div class="section-head">
+                <h2 class="section-title">More In {{ item['category'] }}</h2>
+                <p class="section-subtitle">Similar listings you might like</p>
+            </div>
 
-    <h2>Related Listings</h2>
+            {% if related_items %}
+                <div class="related-grid">
+                    {% for related in related_items %}
+                        <article class="related-card">
+                            {% if related['image'] %}
+                                <img class="related-media" src="{{ url_for('static', filename='uploads/' + related['image']) }}" alt="{{ related['title'] }}">
+                            {% endif %}
 
-        {% for related in related_items %}
+                            <div class="related-body">
+                                <h3 class="related-title">
+                                    <a href="{{ url_for('listing_detail', id=related['id'], category=item['category']) }}">{{ related['title'] }}</a>
+                                </h3>
 
-        <div style="border:1px solid gray; padding:10px; margin:10px;">
+                                <p class="related-meta">
+                                    <span><strong>{{ related['price'] }}</strong></span>
+                                    <span>•</span>
+                                    <span>{{ related['category'] }}</span>
+                                    <span>•</span>
+                                    <span>{{ related['days_left'] }} day(s) left</span>
+                                </p>
 
-        <a href="/listing/{{ related['id'] }}">
-            <h3>{{ related['title'] }}</h3>
-        </a>
+                                <div class="related-badges">
+                                    {% if related['is_featured'] == 1 %}
+                                        <span class="mini-badge featured">🔥 Featured</span>
+                                    {% endif %}
+                                    {% if 0 <= related['days_left'] <= 3 %}
+                                        <span class="mini-badge urgent">⚡ Soon</span>
+                                    {% endif %}
+                                </div>
 
-        {% if related['image'] %}
-            <img
-                src="{{ url_for('static', filename='uploads/' + related['image']) }}"
-                width="150"
-            >
-        {% endif %}
-
-        <p>Price: {{ related['price'] }}</p>
-
-        <p>Category: {{ related['category'] }}</p>
-
-        </div>
-
-    {% endfor %}
+                                <a class="related-link" href="{{ url_for('listing_detail', id=related['id'], category=item['category']) }}">View Listing</a>
+                            </div>
+                        </article>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="related-empty">No related listings in this category right now.</p>
+            {% endif %}
+        </section>
 
     </main>
 </body>

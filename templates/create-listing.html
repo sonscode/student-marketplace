@@ -221,7 +221,7 @@
 </head>
 <body>
     <main class="page">
-        <a class="back" href="{{ url_for('home', user_phone=user_phone) }}">⬅ Back to Listings</a>
+        <a class="back" href="{{ url_for('home') }}">⬅ Back to Listings</a>
 
         <section class="card">
             <h1>Add New Listing</h1>
@@ -280,7 +280,7 @@
 
                 <div class="actions">
                     <button class="btn primary" type="submit">Post Listing</button>
-                    <a class="btn ghost" href="{{ url_for('home', user_phone=user_phone) }}">Cancel</a>
+                    <a class="btn ghost" href="{{ url_for('home') }}">Cancel</a>
                 </div>
             </form>
         </section>
