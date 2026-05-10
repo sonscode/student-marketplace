@@ -260,6 +260,34 @@
 
             <a class="cta" href="https://wa.me/{{ item['phone'] }}" target="_blank">Contact on WhatsApp</a>
         </article>
+
+        <hr>
+
+    <h2>Related Listings</h2>
+
+        {% for related in related_items %}
+
+        <div style="border:1px solid gray; padding:10px; margin:10px;">
+
+        <a href="/listing/{{ related['id'] }}">
+            <h3>{{ related['title'] }}</h3>
+        </a>
+
+        {% if related['image'] %}
+            <img
+                src="{{ url_for('static', filename='uploads/' + related['image']) }}"
+                width="150"
+            >
+        {% endif %}
+
+        <p>Price: {{ related['price'] }}</p>
+
+        <p>Category: {{ related['category'] }}</p>
+
+        </div>
+
+    {% endfor %}
+
     </main>
 </body>
 </html>

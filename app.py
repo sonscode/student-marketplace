@@ -361,6 +361,20 @@ def listing_detail(id):
 
     cursor.execute("SELECT * FROM listings WHERE id = ?", (id,))
     item = cursor.fetchone()
+
+    cursor.execute("""
+        SELECT * FROM listings
+        WHERE category = ?
+        AND id != ?
+        ORDER BY is_featured DESC, id DESC
+        LIMIT 4
+        """, (
+        item['category'],
+        item['id']
+        ))
+
+    related_items = cursor.fetchall()
+
     conn.close()
 
     if item is None:
@@ -375,6 +389,7 @@ def listing_detail(id):
         item=item,
         days_left=days_left,
         user_phone=user_phone,
+        related_items=related_items,
         can_manage=bool(user_phone and (item["owner_phone"] or "") == user_phone)
     )
 
