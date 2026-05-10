@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ item['title'] }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #f7f4ec;
+            --card: #ffffff;
+            --text: #1b1d20;
+            --muted: #60656f;
+            --line: #ded8ca;
+            --brand: #d0562d;
+            --urgent: #cf3a2b;
+            --featured: #cf3a2b;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: "Manrope", "Segoe UI", sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at 10% 0%, #fff2d7 0, transparent 28%),
+                radial-gradient(circle at 90% 10%, #ffe7dd 0, transparent 24%),
+                var(--bg);
+            min-height: 100vh;
+        }
+
+        .page {
+            width: min(900px, 92vw);
+            margin: 34px auto 50px;
+        }
+
+        .topbar {
+            margin-bottom: 14px;
+        }
+
+        .back {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            text-decoration: none;
+            color: #2f3641;
+            border: 1px solid var(--line);
+            background: #fff;
+            padding: 9px 12px;
+            border-radius: 10px;
+            font-weight: 700;
+        }
+
+        .card {
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            background: var(--card);
+            padding: 18px;
+            display: grid;
+            gap: 16px;
+            animation: rise 0.24s ease both;
+        }
+
+        .title {
+            margin: 0;
+            font-size: clamp(1.4rem, 2.8vw, 2.1rem);
+            letter-spacing: -0.02em;
+            line-height: 1.2;
+        }
+
+        .meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .badge {
+            font-size: 0.8rem;
+            font-weight: 800;
+            border-radius: 999px;
+            padding: 5px 10px;
+            background: #f1ecdf;
+        }
+
+        .badge.featured {
+            background: #ffe5e1;
+            color: var(--featured);
+        }
+
+        .badge.urgent {
+            background: #fff0ec;
+            color: var(--urgent);
+        }
+
+        .hero {
+            width: 100%;
+            border-radius: 14px;
+            border: 1px solid var(--line);
+            object-fit: cover;
+            max-height: 460px;
+            background: #f3f0e9;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .field {
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 10px 12px;
+            background: #fcfbf8;
+        }
+
+        .label {
+            display: block;
+            color: var(--muted);
+            font-size: 0.8rem;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            font-weight: 700;
+        }
+
+        .description {
+            margin: 0;
+            line-height: 1.65;
+            white-space: pre-wrap;
+            color: #2c3037;
+        }
+
+        .cta {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            border: 0;
+            border-radius: 12px;
+            padding: 10px 14px;
+            text-decoration: none;
+            color: white;
+            font-weight: 700;
+            background: linear-gradient(135deg, #ea6f45, var(--brand));
+        }
+
+        .owner-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .owner-link,
+        .owner-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            border-radius: 12px;
+            padding: 9px 12px;
+            text-decoration: none;
+            font-weight: 700;
+            border: 1px solid var(--line);
+            background: #fff;
+            color: var(--text);
+            font: inherit;
+            cursor: pointer;
+        }
+
+        .owner-btn.delete {
+            color: #a31f23;
+            border-color: #f2c8c9;
+            background: #fff8f8;
+        }
+
+        @keyframes rise {
+            from {
+                opacity: 0;
+                transform: translateY(6px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @media (max-width: 700px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="page">
+        <div class="topbar">
+            <a class="back" href="{{ url_for('home', category=request.args.get('category'), search=request.args.get('search'), user_phone=user_phone) }}">⬅ Back to Listings</a>
+        </div>
+
+        <article class="card">
+            <h1 class="title">{{ item['title'] }}</h1>
+
+            <div class="meta">
+                {% if item['is_featured'] == 1 %}
+                    <span class="badge featured">🔥 Featured</span>
+                {% endif %}
+                {% if 0 <= days_left <= 3 %}
+                    <span class="badge urgent">⚡ Leaving Soon</span>
+                {% endif %}
+            </div>
+
+            {% if item['image'] %}
+                <img class="hero" src="{{ url_for('static', filename='uploads/' + item['image']) }}" alt="{{ item['title'] }}">
+            {% endif %}
+
+            <section class="grid">
+                <div class="field">
+                    <span class="label">Price</span>
+                    <strong>{{ item['price'] }}</strong>
+                </div>
+                <div class="field">
+                    <span class="label">Category</span>
+                    <strong>{{ item['category'] }}</strong>
+                </div>
+                <div class="field">
+                    <span class="label">Phone</span>
+                    <strong>{{ item['phone'] }}</strong>
+                </div>
+                <div class="field">
+                    <span class="label">Days Left</span>
+                    {% if days_left < 0 %}
+                        <strong>Expired {{ (days_left * -1) }} day(s) ago</strong>
+                    {% else %}
+                        <strong>{{ days_left }} day(s)</strong>
+                    {% endif %}
+                </div>
+            </section>
+
+            <section>
+                <span class="label">Description</span>
+                <p class="description">{{ item['description'] or 'No description provided.' }}</p>
+            </section>
+
+            {% if can_manage %}
+                <section class="owner-actions">
+                    <a class="owner-link" href="{{ url_for('edit_listing', id=item['id'], user_phone=user_phone) }}">Edit Listing</a>
+                    <form method="POST" action="{{ url_for('delete_listing', id=item['id']) }}" onsubmit="return confirm('Are you sure you want to delete this listing?');">
+                        <input type="hidden" name="user_phone" value="{{ user_phone }}">
+                        <button class="owner-btn delete" type="submit">Delete Listing</button>
+                    </form>
+                </section>
+            {% endif %}
+
+            <a class="cta" href="https://wa.me/{{ item['phone'] }}" target="_blank">Contact on WhatsApp</a>
+        </article>
+    </main>
+</body>
+</html>

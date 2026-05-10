@@ -1,102 +1,393 @@
 <!DOCTYPE html>
-    <head>
-        <title>Student Market Place</title>
-    </head>
-    <body>
-        <!-- <form method="POST" action="/add ">
-            <input type="text" name="title" placeholder="Item name" required>
-            <input type="text" name="price" placeholder="Item price" required>
-            <select name="category" required>
-                <option value="">Select category</option>
-                <option value="Electronics">Electronics</option>
-                <option value="Furniture">Furniture</option>
-                <option value="Clothing">Clothing</option>
-                <option value="Room">Room</option>
-                <option value="Kitchen">Kitchen</option>
-            </select>
-            <label>
-                <input type="checkbox" name="featured">
-                Boost this listing (500 XAF)
-            </label>
-            <button type="submit">Add</button>
-        </form> -->
-        
-        <!-- <hr> -->
-        <a href="/create">
-            <button>Add New Listing</button>
-        </a>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Market Place</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #f7f4ec;
+            --card: #ffffff;
+            --text: #1b1d20;
+            --muted: #60656f;
+            --line: #ded8ca;
+            --brand: #d0562d;
+            --accent: #ffd54f;
+            --urgent: #cf3a2b;
+            --featured: #cf3a2b;
+            --chip: #f1ecdf;
+        }
 
-        <form action="/" method="get">
-            <input type="text" name="search" placeholder="Search listings..." value="{{ request.args.get('search', '') }}">
-            <button type="submit">Search</button>
-        </form>
+        * {
+            box-sizing: border-box;
+        }
 
-        <h1>Available listings</h1>
-                <h3>Filter by Category</h3>
-                <a href="/">All</a>
-                <a href="/?category=Furniture">Furniture</a>
-                <a href="/?category=Kitchen">Kitchen</a>
-                <a href="/?category=Electronics">Electronics</a>
-                <a href="/?category=Room">Room</a>
-                <a href="/?category=Clothing">Clothing</a>
-                <a href="/?category=Other">Other</a>
-        {% for item in listings %}
-            <div style="border:1px soild black; padding: 10px; margin: 10px;">
+        body {
+            margin: 0;
+            font-family: "Manrope", "Segoe UI", sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at 10% 0%, #fff2d7 0, transparent 28%),
+                radial-gradient(circle at 90% 10%, #ffe7dd 0, transparent 24%),
+                var(--bg);
+            min-height: 100vh;
+        }
 
-                <!-- {% if item[3] == 1 %}
-                    <strong style="color: red;">🔥 Featured</strong><br>
-                {% endif %} -->
+        .page {
+            width: min(980px, 92vw);
+            margin: 34px auto 46px;
+        }
 
-                <h2>{{ item['title'] | highlight(search) }} 
-                        {% if item['is_featured'] == 1 %}
-                        
-                            <span style="color:red;">🔥</span>
-                            <br>
-                            <small style="color: red;">featured</small>
-                        {% endif %}
-                </h2>
-                <p>Price: {{ item['price'] | highlight(search) }}</p>
-                {% if item['image'] %}
-                    <img src="{{ url_for('static', filename='uploads/' + item['image']) }}" width="200">
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 18px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: clamp(1.45rem, 2.2vw, 2rem);
+            letter-spacing: -0.02em;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 10px 14px;
+            text-decoration: none;
+            color: var(--text);
+            background: #fff;
+            font-weight: 700;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 18px rgba(26, 21, 10, 0.08);
+        }
+
+        .btn.primary {
+            border-color: #0000;
+            background: linear-gradient(135deg, #ea6f45, var(--brand));
+            color: white;
+        }
+
+        .controls {
+            display: grid;
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
+        .search {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+            gap: 8px;
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 8px;
+        }
+
+        .search input {
+            border: 0;
+            outline: none;
+            font-size: 0.96rem;
+            padding: 6px 10px;
+            background: transparent;
+            color: var(--text);
+            font-family: inherit;
+        }
+
+        .search button {
+            border: 0;
+            background: var(--text);
+            color: #fff;
+            padding: 9px 14px;
+            border-radius: 10px;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .chip {
+            padding: 6px 12px;
+            border-radius: 999px;
+            border: 1px solid var(--line);
+            background: var(--card);
+            color: var(--muted);
+            text-decoration: none;
+            font-size: 0.88rem;
+            font-weight: 700;
+        }
+
+        .chip.active {
+            color: var(--text);
+            border-color: #e9b89f;
+            background: #fff4ee;
+        }
+
+        .list {
+            display: grid;
+            gap: 12px;
+        }
+
+        .card {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 14px;
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            padding: 15px;
+            animation: lift-in 0.24s ease both;
+        }
+
+        .card-body h2 {
+            margin: 0 0 6px;
+            font-size: 1.1rem;
+            line-height: 1.35;
+            letter-spacing: -0.01em;
+        }
+
+        .card-body h2 a {
+            color: var(--text);
+            text-decoration: none;
+            border-bottom: 1px solid #0000;
+            transition: border-color 0.15s ease;
+        }
+
+        .card-body h2 a:hover {
+            border-color: #32363f;
+        }
+
+        .meta {
+            margin: 0;
+            font-size: 0.93rem;
+            color: var(--muted);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .summary {
+            margin: 9px 0 0;
+            color: #2c3037;
+            font-size: 0.94rem;
+            line-height: 1.5;
+        }
+
+        .badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .badge {
+            font-size: 0.78rem;
+            font-weight: 800;
+            border-radius: 999px;
+            padding: 5px 9px;
+            background: var(--chip);
+        }
+
+        .badge.featured {
+            background: #ffe5e1;
+            color: var(--featured);
+        }
+
+        .badge.urgent {
+            background: #fff0ec;
+            color: var(--urgent);
+        }
+
+        .thumb {
+            width: 92px;
+            height: 92px;
+            border-radius: 12px;
+            object-fit: cover;
+            background: #f3f0e9;
+            border: 1px solid var(--line);
+        }
+
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .action-link,
+        .action-btn {
+            border: 1px solid var(--line);
+            background: #fff;
+            color: var(--text);
+            border-radius: 10px;
+            padding: 7px 10px;
+            font-size: 0.84rem;
+            font-weight: 700;
+            text-decoration: none;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .action-btn.delete {
+            color: #a31f23;
+            border-color: #f2c8c9;
+            background: #fff8f8;
+        }
+
+        .owner-note {
+            margin-top: 10px;
+            color: var(--muted);
+            font-size: 0.82rem;
+        }
+
+        .empty {
+            background: #fff;
+            border: 1px dashed var(--line);
+            border-radius: 14px;
+            padding: 18px;
+            color: var(--muted);
+            text-align: center;
+        }
+
+        mark {
+            background-color: var(--accent);
+            padding: 1px 3px;
+            border-radius: 4px;
+        }
+
+        @keyframes lift-in {
+            from {
+                opacity: 0;
+                transform: translateY(5px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @media (max-width: 680px) {
+            .search {
+                grid-template-columns: 1fr;
+            }
+
+            .card {
+                grid-template-columns: 1fr;
+            }
+
+            .thumb {
+                width: 100%;
+                height: 180px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="page">
+        <section class="header">
+            <h1>Available Listings</h1>
+            <a class="btn primary" href="{{ url_for('create', user_phone=user_phone) }}">+ Add New Listing</a>
+        </section>
+
+        <section class="controls">
+            <form class="search" action="/" method="get">
+                <input type="text" name="search" placeholder="Search title, description, category..." value="{{ request.args.get('search', '') }}">
+                <input type="text" name="user_phone" placeholder="Your phone (to manage your listings)" value="{{ user_phone or '' }}">
+                {% if request.args.get('category') %}
+                    <input type="hidden" name="category" value="{{ request.args.get('category') }}">
                 {% endif %}
-                {% if item['description']|length > 120 %}
-                    <p>{{ (item['description'][:120] ~ '...') | highlight(search) }}</p>
-                {% else %}
-                    <p>{{ item['description'] | highlight(search) }}</p>
-                {% endif %}
-                {% if item['days_left'] < 0 %}
-                    <p>Expired {{ (item['days_left'] * -1) }} day(s) ago</p>
-                    <span style="color:gray;"><small>expired</small></span>
-                {% else %}
-                    <p>Leaving in: {{ item['days_left'] }} days</p>
-                {% endif %}
-                {% if 0 <= item['days_left'] <= 3 %}
-                    <span style="color: orange; font-weight:bold;"><small>⚡urgent</small></span>
-                {% endif %}
-                <p>Phone: {{ item['phone'] | highlight(search) }}</p>
-                <a href="https://wa.me/{{ item['phone'] }}" target="_blank">
-                    <button>Contact on WhatsApp</button>
-                </a>
-                <p>Category: {{ item['category'] | highlight(search) }}</p>
+                <button type="submit">Search</button>
+            </form>
 
-<!-- Edit and delete -->
-
-                <a href="/edit/{{ item['id'] }}">
-                    <button>Edit</button>
-                </a>
-                <form method="POST" action="/delete/{{ item['id'] }}" onsubmit="return confirm('Are you sure you want to delete this listing?');">
-                    <button type="submit">Delete</button>
-                </form>
-                 
+            {% set active_category = request.args.get('category') %}
+            {% set active_search = request.args.get('search') %}
+            <div class="chips">
+                <a class="chip {% if not active_category %}active{% endif %}" href="{{ url_for('home', search=active_search, user_phone=user_phone) }}">All</a>
+                <a class="chip {% if active_category == 'Furniture' %}active{% endif %}" href="{{ url_for('home', category='Furniture', search=active_search, user_phone=user_phone) }}">Furniture</a>
+                <a class="chip {% if active_category == 'Kitchen' %}active{% endif %}" href="{{ url_for('home', category='Kitchen', search=active_search, user_phone=user_phone) }}">Kitchen</a>
+                <a class="chip {% if active_category == 'Electronics' %}active{% endif %}" href="{{ url_for('home', category='Electronics', search=active_search, user_phone=user_phone) }}">Electronics</a>
+                <a class="chip {% if active_category == 'Room' %}active{% endif %}" href="{{ url_for('home', category='Room', search=active_search, user_phone=user_phone) }}">Room</a>
+                <a class="chip {% if active_category == 'Clothing' %}active{% endif %}" href="{{ url_for('home', category='Clothing', search=active_search, user_phone=user_phone) }}">Clothing</a>
+                <a class="chip {% if active_category == 'Other' %}active{% endif %}" href="{{ url_for('home', category='Other', search=active_search, user_phone=user_phone) }}">Other</a>
             </div>
-        {% endfor %}
-    </body>
+        </section>
 
-<style>
-    mark {
-        background-color: #ffd54f;
-        padding: 2px;
-        border-radius: 3px;
-    }
-</style>
+        <section class="list">
+            {% if listings %}
+                {% for item in listings %}
+                    <article class="card">
+                        <div class="card-body">
+                            <h2>
+                                <a href="{{ url_for('listing_detail', id=item['id'], category=request.args.get('category'), search=request.args.get('search'), user_phone=user_phone) }}">
+                                    {{ item['title'] | highlight(search) }}
+                                </a>
+                            </h2>
+
+                            <p class="meta">
+                                <span><strong>{{ item['price'] | highlight(search) }}</strong></span>
+                                <span>•</span>
+                                <span>{{ item['category'] | highlight(search) }}</span>
+                                <span>•</span>
+                                <span>Leaving in {{ item['days_left'] }} day(s)</span>
+                            </p>
+
+                            {% if item['description']|length > 120 %}
+                                <p class="summary">{{ (item['description'][:120] ~ '...') | highlight(search) }}</p>
+                            {% else %}
+                                <p class="summary">{{ item['description'] | highlight(search) }}</p>
+                            {% endif %}
+
+                            <div class="badges">
+                                {% if item['is_featured'] == 1 %}
+                                    <span class="badge featured">🔥 Featured</span>
+                                {% endif %}
+                                {% if 0 <= item['days_left'] <= 3 %}
+                                    <span class="badge urgent">⚡ Leaving Soon</span>
+                                {% endif %}
+                            </div>
+
+                            <div class="actions">
+                                <a class="action-link" href="{{ url_for('listing_detail', id=item['id'], category=request.args.get('category'), search=request.args.get('search'), user_phone=user_phone) }}">View Details</a>
+                                {% if item['can_manage'] %}
+                                    <a class="action-link" href="{{ url_for('edit_listing', id=item['id'], user_phone=user_phone) }}">Edit</a>
+                                    <form method="POST" action="{{ url_for('delete_listing', id=item['id']) }}" onsubmit="return confirm('Are you sure you want to delete this listing?');">
+                                        <input type="hidden" name="user_phone" value="{{ user_phone }}">
+                                        <button class="action-btn delete" type="submit">Delete</button>
+                                    </form>
+                                {% elif user_phone %}
+                                    <span class="owner-note">Owner-only controls hidden</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        {% if item['image'] %}
+                            <img class="thumb" src="{{ url_for('static', filename='uploads/' + item['image']) }}" alt="{{ item['title'] }}">
+                        {% endif %}
+                    </article>
+                {% endfor %}
+            {% else %}
+                <p class="empty">No listings match your current search/filter.</p>
+            {% endif %}
+        </section>
+    </main>
+</body>
 </html>

@@ -1,17 +1,260 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Edit Listing</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #f7f4ec;
+            --card: #ffffff;
+            --text: #1b1d20;
+            --muted: #60656f;
+            --line: #ded8ca;
+            --brand: #d0562d;
+            --soft: #fcfbf8;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: "Manrope", "Segoe UI", sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at 10% 0%, #fff2d7 0, transparent 28%),
+                radial-gradient(circle at 90% 10%, #ffe7dd 0, transparent 24%),
+                var(--bg);
+            min-height: 100vh;
+        }
+
+        .page {
+            width: min(780px, 92vw);
+            margin: 34px auto 48px;
+        }
+
+        .topbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+
+        .nav {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            text-decoration: none;
+            color: #2f3641;
+            border: 1px solid var(--line);
+            background: #fff;
+            padding: 9px 12px;
+            border-radius: 10px;
+            font-weight: 700;
+        }
+
+        .card {
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            background: var(--card);
+            padding: 20px;
+            animation: rise 0.24s ease both;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: clamp(1.35rem, 2.4vw, 1.9rem);
+            letter-spacing: -0.02em;
+        }
+
+        .subtitle {
+            margin: 6px 0 0;
+            color: var(--muted);
+            font-size: 0.94rem;
+        }
+
+        form {
+            margin-top: 16px;
+            display: grid;
+            gap: 14px;
+        }
+
+        .field {
+            display: grid;
+            gap: 6px;
+        }
+
+        label {
+            font-size: 0.83rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            color: #2d333d;
+        }
+
+        input,
+        textarea {
+            width: 100%;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 10px 12px;
+            font: inherit;
+            color: var(--text);
+            background: var(--soft);
+            outline: none;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        input:focus,
+        textarea:focus {
+            border-color: #d68868;
+            box-shadow: 0 0 0 3px rgba(208, 86, 45, 0.15);
+        }
+
+        input[type="file"] {
+            border: 1.5px dashed #e8c7b7;
+            background: #fff9f6;
+            color: var(--muted);
+            padding: 8px;
+            cursor: pointer;
+        }
+
+        input[type="file"]::file-selector-button {
+            border: 0;
+            border-radius: 999px;
+            padding: 8px 12px;
+            margin-right: 10px;
+            color: #fff;
+            font: inherit;
+            font-weight: 700;
+            background: linear-gradient(135deg, #ea6f45, var(--brand));
+            cursor: pointer;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        input[type="file"]::file-selector-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 18px rgba(208, 86, 45, 0.2);
+        }
+
+        textarea {
+            min-height: 150px;
+            resize: vertical;
+        }
+
+        .actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 2px;
+        }
+
+        .preview {
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: #fff;
+            padding: 10px;
+        }
+
+        .preview img {
+            width: 100%;
+            max-width: 260px;
+            border-radius: 10px;
+            border: 1px solid var(--line);
+            display: block;
+        }
+
+        .btn {
+            border: 0;
+            border-radius: 12px;
+            padding: 10px 14px;
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn.primary {
+            color: #fff;
+            background: linear-gradient(135deg, #ea6f45, var(--brand));
+        }
+
+        .btn.ghost {
+            color: #2f3641;
+            border: 1px solid var(--line);
+            background: #fff;
+        }
+
+        @keyframes rise {
+            from {
+                opacity: 0;
+                transform: translateY(6px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
 </head>
 <body>
-    <h1>Edit Listing</h1>
+    <main class="page">
+        <div class="topbar">
+            <a class="nav" href="{{ url_for('home', user_phone=user_phone) }}">⬅ Back to Listings</a>
+            <a class="nav" href="{{ url_for('listing_detail', id=listing['id'], user_phone=user_phone) }}">View Listing</a>
+        </div>
 
-    <form method="POST" action="/update/{{ listing['id'] }}">
-        <input type="text" name="title" value="{{ listing['title'] }}" required><br><br>
-        <input type="text" name="price" value="{{ listing['price'] }}" required><br><br>
-        <input type="text" name="phone" value="{{ listing['phone'] }}" required><br><br>
-        <textarea name="description" rows="5" cols="40" required>{{ listing['description'] or '' }}</textarea><br><br>
-        <button type="submit">Update Listing</button>
-    </form>
+        <section class="card">
+            <h1>Edit Listing</h1>
+            <p class="subtitle">Update the fields below and save your changes.</p>
+
+            <form method="POST" action="/update/{{ listing['id'] }}" enctype="multipart/form-data">
+                <input type="hidden" name="user_phone" value="{{ user_phone }}">
+                <div class="field">
+                    <label for="title">Item Name</label>
+                    <input id="title" type="text" name="title" value="{{ listing['title'] }}" required>
+                </div>
+
+                <div class="field">
+                    <label for="price">Price</label>
+                    <input id="price" type="text" name="price" value="{{ listing['price'] }}" required>
+                </div>
+
+                <div class="field">
+                    <label for="phone">Phone Number</label>
+                    <input id="phone" type="text" name="phone" value="{{ listing['phone'] }}" required>
+                </div>
+
+                <div class="field">
+                    <label for="description">Description</label>
+                    <textarea id="description" name="description" required>{{ listing['description'] or '' }}</textarea>
+                </div>
+
+                {% if listing['image'] %}
+                    <div class="field preview">
+                        <label>Current Image</label>
+                        <img src="{{ url_for('static', filename='uploads/' + listing['image']) }}" alt="{{ listing['title'] }}">
+                    </div>
+                {% endif %}
+
+                <div class="field">
+                    <label for="image">Replace Image (optional)</label>
+                    <input id="image" type="file" name="image" accept="image/*">
+                </div>
+
+                <div class="actions">
+                    <button class="btn primary" type="submit">Save Changes</button>
+                    <a class="btn ghost" href="{{ url_for('listing_detail', id=listing['id'], user_phone=user_phone) }}">Cancel</a>
+                </div>
+            </form>
+        </section>
+    </main>
 </body>
 </html>

@@ -1,42 +1,289 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Create Listing</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #f7f4ec;
+            --card: #ffffff;
+            --text: #1b1d20;
+            --muted: #60656f;
+            --line: #ded8ca;
+            --brand: #d0562d;
+            --soft: #fcfbf8;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: "Manrope", "Segoe UI", sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at 10% 0%, #fff2d7 0, transparent 28%),
+                radial-gradient(circle at 90% 10%, #ffe7dd 0, transparent 24%),
+                var(--bg);
+            min-height: 100vh;
+        }
+
+        .page {
+            width: min(860px, 92vw);
+            margin: 34px auto 48px;
+        }
+
+        .back {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            text-decoration: none;
+            color: #2f3641;
+            border: 1px solid var(--line);
+            background: #fff;
+            padding: 9px 12px;
+            border-radius: 10px;
+            font-weight: 700;
+            margin-bottom: 14px;
+        }
+
+        .card {
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            background: var(--card);
+            padding: 20px;
+            animation: rise 0.24s ease both;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: clamp(1.4rem, 2.5vw, 2rem);
+            letter-spacing: -0.02em;
+        }
+
+        .subtitle {
+            margin: 6px 0 0;
+            color: var(--muted);
+            font-size: 0.94rem;
+        }
+
+        form {
+            margin-top: 16px;
+            display: grid;
+            gap: 14px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .field {
+            display: grid;
+            gap: 6px;
+        }
+
+        .field.full {
+            grid-column: 1 / -1;
+        }
+
+        label {
+            font-size: 0.83rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            color: #2d333d;
+        }
+
+        input,
+        textarea,
+        select {
+            width: 100%;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 10px 12px;
+            font: inherit;
+            color: var(--text);
+            background: var(--soft);
+            outline: none;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        input:focus,
+        textarea:focus,
+        select:focus {
+            border-color: #d68868;
+            box-shadow: 0 0 0 3px rgba(208, 86, 45, 0.15);
+        }
+
+        input[type="file"] {
+            border: 1.5px dashed #e8c7b7;
+            background: #fff9f6;
+            color: var(--muted);
+            padding: 8px;
+            cursor: pointer;
+        }
+
+        input[type="file"]::file-selector-button {
+            border: 0;
+            border-radius: 999px;
+            padding: 8px 12px;
+            margin-right: 10px;
+            color: #fff;
+            font: inherit;
+            font-weight: 700;
+            background: linear-gradient(135deg, #ea6f45, var(--brand));
+            cursor: pointer;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        input[type="file"]::file-selector-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 18px rgba(208, 86, 45, 0.2);
+        }
+
+        textarea {
+            min-height: 140px;
+            resize: vertical;
+        }
+
+        .check {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 12px;
+            background: #fff7f4;
+            font-size: 0.92rem;
+        }
+
+        .check input {
+            width: 16px;
+            height: 16px;
+            margin: 0;
+            accent-color: var(--brand);
+        }
+
+        .actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 4px;
+        }
+
+        .btn {
+            border: 0;
+            border-radius: 12px;
+            padding: 10px 14px;
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn.primary {
+            color: #fff;
+            background: linear-gradient(135deg, #ea6f45, var(--brand));
+        }
+
+        .btn.ghost {
+            color: #2f3641;
+            border: 1px solid var(--line);
+            background: #fff;
+        }
+
+        @keyframes rise {
+            from {
+                opacity: 0;
+                transform: translateY(6px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @media (max-width: 760px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
 </head>
 <body>
+    <main class="page">
+        <a class="back" href="{{ url_for('home', user_phone=user_phone) }}">⬅ Back to Listings</a>
 
-<h1>Add New Listing</h1>
-  <form method="POST" action="/add" enctype="multipart/form-data">
-            <input type="text" name="title" placeholder="Item name" required>
-            <input type="text" name="price" placeholder="Item price" required>
-            <input type="text" name="phone" placeholder="Phone number" required>
-            <textarea name="description"
-                placeholder="Describe the item..."
-                rows="5"
-                cols="40"
-                required>
-            </textarea><br><br>
-<br><br>
-            <input type="file" name="image" required><br><br>
-            <br><label>Leaving date:</label><br>
-            <input type="date" name="leave_date" required><br><br>
-            <select name="category" required>
-                <option value="">Select category</option>
-                <option value="Electronics">Electronics</option>
-                <option value="Furniture">Furniture</option>
-                <option value="Clothing">Clothing</option>
-                <option value="Room">Room</option>
-                <option value="Kitchen">Kitchen</option>
-                <option value="Other">Other</option>
-            </select>
-            <label>
-                <input type="checkbox" name="featured">
-                Boost this listing (500 XAF)
-            </label>
-            <button type="submit">Post listing</button>
-        </form>
-<br>
-<a href="/">⬅ Back to listings</a>
+        <section class="card">
+            <h1>Add New Listing</h1>
+            <p class="subtitle">Fill in the details below to publish your item.</p>
 
+            <form method="POST" action="/add" enctype="multipart/form-data">
+                <div class="grid">
+                    <div class="field">
+                        <label for="title">Item Name</label>
+                        <input id="title" type="text" name="title" placeholder="e.g. Study Table" required>
+                    </div>
+
+                    <div class="field">
+                        <label for="price">Price</label>
+                        <input id="price" type="text" name="price" placeholder="e.g. 15000 XAF" required>
+                    </div>
+
+                    <div class="field">
+                        <label for="phone">Phone Number</label>
+                        <input id="phone" type="text" name="phone" placeholder="e.g. 676210234" value="{{ user_phone or '' }}" required>
+                    </div>
+
+                    <div class="field">
+                        <label for="leave_date">Leaving Date</label>
+                        <input id="leave_date" type="date" name="leave_date" required>
+                    </div>
+
+                    <div class="field">
+                        <label for="category">Category</label>
+                        <select id="category" name="category" required>
+                            <option value="">Select category</option>
+                            <option value="Electronics">Electronics</option>
+                            <option value="Furniture">Furniture</option>
+                            <option value="Clothing">Clothing</option>
+                            <option value="Room">Room</option>
+                            <option value="Kitchen">Kitchen</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="image">Listing Image</label>
+                        <input id="image" type="file" name="image" accept="image/*" required>
+                    </div>
+
+                    <div class="field full">
+                        <label for="description">Description</label>
+                        <textarea id="description" name="description" placeholder="Describe your item condition, accessories, and pickup details..." required></textarea>
+                    </div>
+
+                    <label class="check full" for="featured">
+                        <input id="featured" type="checkbox" name="featured">
+                        <span>Boost as featured listing (500 XAF)</span>
+                    </label>
+                </div>
+
+                <div class="actions">
+                    <button class="btn primary" type="submit">Post Listing</button>
+                    <a class="btn ghost" href="{{ url_for('home', user_phone=user_phone) }}">Cancel</a>
+                </div>
+            </form>
+        </section>
+    </main>
 </body>
 </html>
