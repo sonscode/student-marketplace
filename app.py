@@ -3,6 +3,7 @@ import re
 import uuid
 import difflib
 import hashlib
+import ipaddress
 from datetime import datetime
 from functools import wraps
 
@@ -12,17 +13,29 @@ from markupsafe import Markup
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 from flask_dance.contrib.google import make_google_blueprint, google
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+def env_flag(name):
+    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+if env_flag("OAUTHLIB_INSECURE_TRANSPORT"):
+    os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
+
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-this")
+app.secret_key = os.getenv("SECRET_KEY", "dev-secret-change-this")
 app.config["GOOGLE_OAUTH_CLIENT_ID"] = (
-    os.environ.get("GOOGLE_OAUTH_CLIENT_ID")
-    or os.environ.get("GOOGLE_CLIENT_ID")
+    os.getenv("GOOGLE_OAUTH_CLIENT_ID")
+    or os.getenv("GOOGLE_CLIENT_ID")
     or ""
 )
 app.config["GOOGLE_OAUTH_CLIENT_SECRET"] = (
-    os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET")
-    or os.environ.get("GOOGLE_CLIENT_SECRET")
+    os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")
+    or os.getenv("GOOGLE_CLIENT_SECRET")
     or ""
 )
 GOOGLE_OAUTH_ENABLED = bool(
@@ -125,6 +138,31 @@ def sanitize_next_url(next_url):
     if not next_url or not next_url.startswith("/") or next_url.startswith("//"):
         return url_for("home")
     return next_url
+
+
+def enable_insecure_oauth_for_localhost():
+    host = (request.host or "").split(":", 1)[0].strip().lower()
+    local_hosts = {"localhost", "127.0.0.1", "0.0.0.0", "::1"}
+    is_local_name = host in local_hosts or host.startswith("localhost")
+    is_private_ip = False
+
+    try:
+        is_private_ip = ipaddress.ip_address(host).is_private
+    except ValueError:
+        is_private_ip = False
+
+    if (is_local_name or is_private_ip) and "OAUTHLIB_INSECURE_TRANSPORT" not in os.environ:
+        os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
+
+
+@app.before_request
+def oauth_dev_transport_guard():
+    if env_flag("OAUTHLIB_INSECURE_TRANSPORT"):
+        os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
+        return
+
+    if request.scheme == "http":
+        enable_insecure_oauth_for_localhost()
 
 
 def set_user_session(user_row):
@@ -511,6 +549,8 @@ def logout():
 
 @app.route("/login/google")
 def login_google():
+    enable_insecure_oauth_for_localhost()
+
     if current_user_record():
         return redirect(url_for("home"))
 
@@ -524,6 +564,8 @@ def login_google():
 
 @app.route("/oauth/google/authorized")
 def google_authorized():
+    enable_insecure_oauth_for_localhost()
+
     if not GOOGLE_OAUTH_ENABLED:
         return "Google OAuth is not configured yet. Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET.", 503
 
