@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ item['title'] }}</title>
+    <title>{{ item['title'] }} | Azison</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
@@ -105,6 +105,17 @@
             object-fit: cover;
             max-height: 460px;
             background: #f3f0e9;
+        }
+
+        .hero-link {
+            display: block;
+            border-radius: 14px;
+        }
+
+        .image-note {
+            margin: -8px 0 0;
+            color: var(--muted);
+            font-size: 0.84rem;
         }
 
         .grid {
@@ -231,6 +242,10 @@
             object-fit: cover;
             background: #f3f0e9;
             border-bottom: 1px solid var(--line);
+        }
+
+        .related-media-link {
+            display: block;
         }
 
         .related-body {
@@ -368,7 +383,10 @@
             </div>
 
             {% if item['image'] %}
-                <img class="hero" src="{{ url_for('static', filename='uploads/' + item['image']) }}" alt="{{ item['title'] }}">
+                <a class="hero-link" href="{{ url_for('static', filename='uploads/' + item['image']) }}" target="_blank" rel="noopener noreferrer" title="Open full image">
+                    <img class="hero" src="{{ url_for('static', filename='uploads/' + item['image']) }}" alt="{{ item['title'] }}">
+                </a>
+                <p class="image-note">Click image to open full-size version.</p>
             {% endif %}
 
             <section class="grid">
@@ -422,7 +440,9 @@
                     {% for related in related_items %}
                         <article class="related-card">
                             {% if related['image'] %}
-                                <img class="related-media" src="{{ url_for('static', filename='uploads/' + related['image']) }}" alt="{{ related['title'] }}">
+                                <a class="related-media-link" href="{{ url_for('static', filename='uploads/' + related['image']) }}" target="_blank" rel="noopener noreferrer" title="Open full image">
+                                    <img class="related-media" src="{{ url_for('static', filename='uploads/' + related['image']) }}" alt="{{ related['title'] }}">
+                                </a>
                             {% endif %}
 
                             <div class="related-body">
