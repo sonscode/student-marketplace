@@ -238,7 +238,7 @@
 
                 <div class="field">
                     <label for="price">Price</label>
-                    <input id="price" type="text" name="price" value="{{ listing['price'] }}" required>
+                    <input id="price" type="number" name="price" min="500" max="50000000" step="1" value="{{ listing['price'] }}" required>
                 </div>
 
                 <div class="field">
@@ -264,12 +264,12 @@
 
                 <div class="field">
                     <label for="phone">Phone Number</label>
-                    <input id="phone" type="text" name="phone" value="{{ listing['phone'] }}" required>
+                    <input id="phone" type="text" name="phone" inputmode="numeric" pattern="^[0-9+ ]{9,16}$" value="{{ listing['phone'] }}" required>
                 </div>
 
                 <div class="field">
                     <label for="description">Description</label>
-                    <textarea id="description" name="description" required>{{ listing['description'] or '' }}</textarea>
+                    <textarea id="description" name="description" minlength="20" required>{{ listing['description'] or '' }}</textarea>
                 </div>
 
                 {% if listing['image'] %}

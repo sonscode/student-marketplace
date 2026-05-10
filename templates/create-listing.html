@@ -247,12 +247,12 @@
 
                     <div class="field">
                         <label for="price">Price</label>
-                        <input id="price" type="text" name="price" placeholder="e.g. 15000 XAF" required>
+                        <input id="price" type="number" name="price" min="500" max="50000000" step="1" placeholder="e.g. 15000" required>
                     </div>
 
                     <div class="field">
                         <label for="phone">Phone Number</label>
-                        <input id="phone" type="text" name="phone" placeholder="e.g. 676210234" value="{{ user_phone or '' }}" required>
+                        <input id="phone" type="text" name="phone" inputmode="numeric" pattern="^[0-9+ ]{9,16}$" placeholder="e.g. 676210234 or +237676210234" value="{{ user_phone or '' }}" required>
                     </div>
 
                     <div class="field">
@@ -280,7 +280,7 @@
 
                     <div class="field full">
                         <label for="description">Description</label>
-                        <textarea id="description" name="description" placeholder="Describe your item condition, accessories, and pickup details..." required></textarea>
+                        <textarea id="description" name="description" minlength="20" placeholder="Describe your item condition, accessories, and pickup details..." required></textarea>
                     </div>
 
                     <label class="check full" for="featured">

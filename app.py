@@ -15,6 +15,17 @@ from werkzeug.utils import secure_filename
 from flask_dance.contrib.google import make_google_blueprint, google
 from dotenv import load_dotenv
 
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
+
+def allowed_file(filename):
+
+    return (
+        '.' in filename
+        and
+        filename.rsplit('.', 1)[1].lower()
+        in ALLOWED_EXTENSIONS
+    )
+
 load_dotenv()
 
 
@@ -28,6 +39,7 @@ if env_flag("OAUTHLIB_INSECURE_TRANSPORT"):
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret-change-this")
+app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024
 app.config["GOOGLE_OAUTH_CLIENT_ID"] = (
     os.getenv("GOOGLE_OAUTH_CLIENT_ID")
     or os.getenv("GOOGLE_CLIENT_ID")
@@ -98,8 +110,23 @@ def normalize_phone(raw_phone):
         return ""
 
     phone = re.sub(r"\D", "", raw_phone)
-    if len(phone) == 9:
-        phone = "237" + phone
+    if phone.startswith("00"):
+        phone = phone[2:]
+
+    national_number = ""
+    if phone.startswith("237") and len(phone) == 12:
+        national_number = phone[3:]
+    elif len(phone) == 10 and phone.startswith("0"):
+        national_number = phone[1:]
+    elif len(phone) == 9:
+        national_number = phone
+    else:
+        return ""
+
+    if len(national_number) != 9 or national_number[0] not in {"2", "6"}:
+        return ""
+
+    phone = "237" + national_number
 
     return phone
 
@@ -138,6 +165,49 @@ def sanitize_next_url(next_url):
     if not next_url or not next_url.startswith("/") or next_url.startswith("//"):
         return url_for("home")
     return next_url
+
+
+PRICE_MIN = 500
+PRICE_MAX = 50000000
+DESCRIPTION_MIN_LENGTH = 20
+DESCRIPTION_MIN_WORDS = 4
+
+
+def clean_description(raw_description):
+    return re.sub(r"\s+", " ", (raw_description or "")).strip()
+
+
+def validate_listing_fields(title_raw, price_raw, phone_raw, description_raw):
+    title = (title_raw or "").strip()
+    phone = normalize_phone(phone_raw)
+    description = clean_description(description_raw)
+    compact_price = re.sub(r"\s+", "", (price_raw or ""))
+    errors = []
+    price_value = None
+
+    if len(title) < 3:
+        errors.append("Title must be at least 3 characters.")
+
+    if not phone:
+        errors.append("Enter a valid Cameroon phone number (9 digits or +237 format).")
+
+    if not re.fullmatch(r"\d+", compact_price):
+        errors.append("Price must contain digits only.")
+    else:
+        price_value = int(compact_price)
+        if price_value < PRICE_MIN or price_value > PRICE_MAX:
+            errors.append(f"Price must be between {PRICE_MIN} and {PRICE_MAX}.")
+
+    if len(description) < DESCRIPTION_MIN_LENGTH or len(description.split()) < DESCRIPTION_MIN_WORDS:
+        errors.append("Description is too short. Add more useful details.")
+
+    return {
+        "errors": errors,
+        "title": title,
+        "phone": phone,
+        "description": description,
+        "price": str(price_value) if price_value is not None else "",
+    }
 
 
 def enable_insecure_oauth_for_localhost():
@@ -181,17 +251,43 @@ def make_google_phone_candidate(google_sub, salt=0):
     seed = f"google:{google_sub}:{salt}".encode("utf-8")
     digest = hashlib.sha256(seed).hexdigest()
     numeric = "".join(str(int(ch, 16) % 10) for ch in digest)
-    return "88" + numeric[:10]
+    national_mobile = "6" + numeric[:8]
+    return normalize_phone(national_mobile)
 
 
 def generate_unique_google_phone(cursor, google_sub):
     for salt in range(0, 1000):
         candidate = make_google_phone_candidate(google_sub, salt=salt)
+        if not candidate:
+            continue
         cursor.execute("SELECT id FROM users WHERE phone = ?", (candidate,))
         existing = cursor.fetchone()
         if existing is None:
             return candidate
     raise RuntimeError("Unable to generate a unique phone seed for Google OAuth user")
+
+
+def get_authenticated_owner_phone():
+    user = current_user_record()
+    if not user:
+        return ""
+
+    normalized_phone = normalize_phone(user["phone"])
+    if normalized_phone:
+        return normalized_phone
+
+    if user.get("auth_provider") != "google":
+        return ""
+
+    conn = get_db()
+    cursor = conn.cursor()
+    seed = user.get("google_sub") or user.get("email") or str(user["id"])
+    replacement_phone = generate_unique_google_phone(cursor, seed)
+    cursor.execute("UPDATE users SET phone = ? WHERE id = ?", (replacement_phone, user["id"]))
+    conn.commit()
+    conn.close()
+    session["user_phone"] = replacement_phone
+    return replacement_phone
 
 
 def current_user_record():
@@ -645,11 +741,81 @@ def create():
     return render_template("create-listing.html", user_phone=phone_prefill)
 
 
+@app.route("/dashboard")
+@login_required
+def dashboard():
+    conn = get_db()
+    cursor = conn.cursor()
+    owner_phone = get_authenticated_owner_phone()
+
+    cursor.execute(
+        """
+        SELECT * FROM listings
+        WHERE owner_phone = ?
+        ORDER BY is_featured DESC, id DESC
+        """,
+        (owner_phone,),
+    )
+    rows = cursor.fetchall()
+    conn.close()
+
+    today = datetime.today().date()
+    listings = []
+    stats = {
+        "total": 0,
+        "active": 0,
+        "soon": 0,
+        "expired": 0,
+        "featured": 0,
+    }
+
+    for row in rows:
+        leave_date = datetime.strptime(row["leave_date"], "%Y-%m-%d").date()
+        days_left = (leave_date - today).days
+        is_expired = days_left < 0
+        is_soon = 0 <= days_left <= 3
+        is_featured = row["is_featured"] == 1
+
+        stats["total"] += 1
+        if is_featured:
+            stats["featured"] += 1
+        if is_expired:
+            stats["expired"] += 1
+        else:
+            stats["active"] += 1
+            if is_soon:
+                stats["soon"] += 1
+
+        listings.append(
+            {
+                "id": row["id"],
+                "title": row["title"],
+                "price": row["price"],
+                "category": row["category"],
+                "phone": row["phone"],
+                "leave_date": row["leave_date"],
+                "description": row["description"] or "",
+                "image": row["image"],
+                "is_featured": row["is_featured"],
+                "days_left": days_left,
+                "is_expired": is_expired,
+                "is_soon": is_soon,
+            }
+        )
+
+    return render_template("dashboard.html", listings=listings, stats=stats)
+
+
 @app.route("/add", methods=["POST"])
 @login_required
 def add_listing():
     conn = get_db()
     cursor = conn.cursor()
+    owner_phone = get_authenticated_owner_phone()
+
+    if not owner_phone:
+        conn.close()
+        return "Not allowed", 403
 
     image = request.files.get("image")
     if image is None or not image.filename:
@@ -661,17 +827,38 @@ def add_listing():
         conn.close()
         return "Invalid image filename", 400
 
-    description = request.form.get("description", "").strip()
+    if not allowed_file(image.filename):
+        conn.close()
+        return "Invalid image format", 400
+
+    validated = validate_listing_fields(
+        title_raw=request.form.get("title"),
+        price_raw=request.form.get("price"),
+        phone_raw=request.form.get("phone") or owner_phone,
+        description_raw=request.form.get("description"),
+    )
+    if validated["errors"]:
+        conn.close()
+        return " | ".join(validated["errors"]), 400
+
+    leave_date = (request.form.get("leave_date") or "").strip()
+    try:
+        datetime.strptime(leave_date, "%Y-%m-%d")
+    except ValueError:
+        conn.close()
+        return "Leaving date is invalid.", 400
+
+    category = (request.form.get("category") or "").strip()
+    if not category:
+        conn.close()
+        return "Category is required.", 400
+
+    title = validated["title"]
+    price = validated["price"]
+    phone = validated["phone"]
+    description = validated["description"]
     filename = str(uuid.uuid4()) + "_" + safe_name
     image.save(os.path.join(app.config["UPLOAD_FOLDER"], filename))
-
-    owner_phone = get_session_phone()
-    phone = normalize_phone(request.form.get("phone")) or owner_phone
-
-    title = request.form["title"]
-    price = request.form["price"]
-    category = request.form["category"]
-    leave_date = request.form["leave_date"]
     is_featured = 1 if "featured" in request.form else 0
 
     cursor.execute(
@@ -690,19 +877,18 @@ def add_listing():
 def delete_listing(id):
     conn = get_db()
     cursor = conn.cursor()
+    owner_phone = get_authenticated_owner_phone()
 
-    user_phone = get_session_phone()
-    cursor.execute("SELECT owner_phone, image FROM listings WHERE id = ?", (id,))
+    if not owner_phone:
+        conn.close()
+        return "Not allowed", 403
+
+    cursor.execute("SELECT image FROM listings WHERE id = ? AND owner_phone = ?", (id, owner_phone))
     listing = cursor.fetchone()
 
     if listing is None:
         conn.close()
-        return "Listing not found", 404
-
-    owner_phone = listing["owner_phone"] or ""
-    if user_phone != owner_phone:
-        conn.close()
-        return "Not allowed", 403
+        return "Listing not found or not allowed", 404
 
     image_name = listing["image"]
     if image_name:
@@ -710,30 +896,29 @@ def delete_listing(id):
         if os.path.exists(image_path):
             os.remove(image_path)
 
-    cursor.execute("DELETE FROM listings WHERE id = ?", (id,))
+    cursor.execute("DELETE FROM listings WHERE id = ? AND owner_phone = ?", (id, owner_phone))
     conn.commit()
     conn.close()
     return redirect(url_for("home"))
 
 
-@app.route("/edit/<int:id>", methods=["GET", "POST"])
+@app.route("/edit/<int:id>", methods=["GET"])
 @login_required
 def edit_listing(id):
     conn = get_db()
     cursor = conn.cursor()
-    user_phone = get_session_phone()
+    owner_phone = get_authenticated_owner_phone()
 
-    cursor.execute("SELECT * FROM listings WHERE id = ?", (id,))
+    if not owner_phone:
+        conn.close()
+        return "Not allowed", 403
+
+    cursor.execute("SELECT * FROM listings WHERE id = ? AND owner_phone = ?", (id, owner_phone))
     listing = cursor.fetchone()
 
     if listing is None:
         conn.close()
-        return "Listing not found", 404
-
-    owner_phone = listing["owner_phone"] or ""
-    if user_phone != owner_phone:
-        conn.close()
-        return "Not allowed", 403
+        return "Listing not found or not allowed", 404
 
     conn.close()
     return render_template("edit.html", listing=listing)
@@ -744,28 +929,45 @@ def edit_listing(id):
 def update_listing(id):
     conn = get_db()
     cursor = conn.cursor()
-    user_phone = get_session_phone()
+    owner_phone = get_authenticated_owner_phone()
 
-    cursor.execute("SELECT image, owner_phone, category, leave_date FROM listings WHERE id = ?", (id,))
+    if not owner_phone:
+        conn.close()
+        return "Not allowed", 403
+
+    cursor.execute(
+        "SELECT image, category, leave_date, title, price, phone, description FROM listings WHERE id = ? AND owner_phone = ?",
+        (id, owner_phone),
+    )
     current_listing = cursor.fetchone()
 
     if current_listing is None:
         conn.close()
-        return "Listing not found", 404
-
-    owner_phone = current_listing["owner_phone"] or ""
-    if user_phone != owner_phone:
-        conn.close()
-        return "Not allowed", 403
+        return "Listing not found or not allowed", 404
 
     current_image = current_listing["image"]
+    validated = validate_listing_fields(
+        title_raw=request.form.get("title", current_listing["title"]),
+        price_raw=request.form.get("price", current_listing["price"]),
+        phone_raw=request.form.get("phone", current_listing["phone"]),
+        description_raw=request.form.get("description", current_listing["description"]),
+    )
+    if validated["errors"]:
+        conn.close()
+        return " | ".join(validated["errors"]), 400
 
-    title = request.form["title"]
-    price = request.form["price"]
-    phone = normalize_phone(request.form.get("phone")) or user_phone
+    title = validated["title"]
+    price = validated["price"]
+    phone = validated["phone"]
     category = request.form.get("category", "").strip() or current_listing["category"]
     leave_date = request.form.get("leave_date", "").strip() or current_listing["leave_date"]
-    description = request.form.get("description", "").strip()
+    description = validated["description"]
+    try:
+        datetime.strptime(leave_date, "%Y-%m-%d")
+    except ValueError:
+        conn.close()
+        return "Leaving date is invalid.", 400
+
     image = request.files.get("image")
     image_filename = current_image
 
@@ -773,6 +975,9 @@ def update_listing(id):
         safe_name = secure_filename(image.filename)
         if safe_name:
             image_filename = str(uuid.uuid4()) + "_" + safe_name
+            if not allowed_file(image.filename):
+                conn.close()
+                return "Invalid image format", 400
             image.save(os.path.join(app.config["UPLOAD_FOLDER"], image_filename))
 
             if current_image:
@@ -781,8 +986,8 @@ def update_listing(id):
                     os.remove(old_image_path)
 
     cursor.execute(
-        "UPDATE listings SET title = ?, price = ?, category = ?, phone = ?, leave_date = ?, description = ?, image = ? WHERE id = ?",
-        (title, price, category, phone, leave_date, description, image_filename, id),
+        "UPDATE listings SET title = ?, price = ?, category = ?, phone = ?, leave_date = ?, description = ?, image = ? WHERE id = ? AND owner_phone = ?",
+        (title, price, category, phone, leave_date, description, image_filename, id, owner_phone),
     )
     conn.commit()
     conn.close()

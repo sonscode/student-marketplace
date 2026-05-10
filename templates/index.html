@@ -340,6 +340,57 @@
             border-radius: 4px;
         }
 
+        .lightbox-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(12, 14, 18, 0.86);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 18px;
+            z-index: 9999;
+        }
+
+        .lightbox-overlay.open {
+            display: flex;
+        }
+
+        .lightbox-content {
+            position: relative;
+            width: min(96vw, 1080px);
+            max-height: 90vh;
+            display: grid;
+            gap: 8px;
+            justify-items: center;
+        }
+
+        .lightbox-image {
+            max-width: 100%;
+            max-height: 84vh;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.24);
+            background: #111;
+        }
+
+        .lightbox-close {
+            position: absolute;
+            top: -12px;
+            right: -12px;
+            border: 0;
+            border-radius: 999px;
+            width: 36px;
+            height: 36px;
+            background: #fff;
+            color: #1b1d20;
+            font-size: 1.25rem;
+            font-weight: 800;
+            cursor: pointer;
+            line-height: 1;
+        }
+
         @keyframes lift-in {
             from {
                 opacity: 0;
@@ -374,6 +425,7 @@
             <div class="header-actions">
                 {% if is_logged_in %}
                     <span class="btn">Hi, {{ current_user['full_name'] }}</span>
+                    <a class="btn" href="{{ url_for('dashboard') }}">My Dashboard</a>
                     <form class="inline-form" method="POST" action="{{ url_for('logout') }}">
                         <button class="btn" type="submit">Logout</button>
                     </form>
@@ -469,7 +521,7 @@
                         </div>
 
                         {% if item['image'] %}
-                            <a class="thumb-link" href="{{ url_for('static', filename='uploads/' + item['image']) }}" target="_blank" rel="noopener noreferrer" title="Open full image">
+                            <a class="thumb-link lightbox-trigger" href="{{ url_for('static', filename='uploads/' + item['image']) }}" title="Open full image">
                                 <img class="thumb" src="{{ url_for('static', filename='uploads/' + item['image']) }}" alt="{{ item['title'] }}">
                             </a>
                         {% endif %}
@@ -480,6 +532,12 @@
             {% endif %}
         </section>
     </main>
+    <div id="image-lightbox" class="lightbox-overlay" aria-hidden="true">
+        <div class="lightbox-content" role="dialog" aria-modal="true" aria-label="Image preview">
+            <button id="lightbox-close" class="lightbox-close" type="button" aria-label="Close image preview">×</button>
+            <img id="lightbox-image" class="lightbox-image" src="" alt="">
+        </div>
+    </div>
     <script>
         document.addEventListener("DOMContentLoaded", function () {
             var cards = document.querySelectorAll(".card.clickable[data-href]");
@@ -501,6 +559,41 @@
                         window.location.href = card.dataset.href;
                     }
                 });
+            });
+
+            var lightbox = document.getElementById("image-lightbox");
+            var lightboxImage = document.getElementById("lightbox-image");
+            var closeButton = document.getElementById("lightbox-close");
+
+            var closeLightbox = function () {
+                lightbox.classList.remove("open");
+                lightbox.setAttribute("aria-hidden", "true");
+                lightboxImage.removeAttribute("src");
+                lightboxImage.removeAttribute("alt");
+            };
+
+            document.querySelectorAll("a.lightbox-trigger[href]").forEach(function (link) {
+                link.addEventListener("click", function (event) {
+                    event.preventDefault();
+                    var imageElement = link.querySelector("img");
+                    lightboxImage.src = link.href;
+                    lightboxImage.alt = imageElement ? imageElement.alt : "Listing image";
+                    lightbox.classList.add("open");
+                    lightbox.setAttribute("aria-hidden", "false");
+                });
+            });
+
+            closeButton.addEventListener("click", closeLightbox);
+            lightbox.addEventListener("click", function (event) {
+                if (event.target === lightbox) {
+                    closeLightbox();
+                }
+            });
+
+            document.addEventListener("keydown", function (event) {
+                if (event.key === "Escape" && lightbox.classList.contains("open")) {
+                    closeLightbox();
+                }
             });
         });
     </script>
