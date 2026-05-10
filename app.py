@@ -169,8 +169,7 @@ def sanitize_next_url(next_url):
 
 PRICE_MIN = 500
 PRICE_MAX = 50000000
-DESCRIPTION_MIN_LENGTH = 20
-DESCRIPTION_MIN_WORDS = 4
+DESCRIPTION_MAX_WORDS = 50
 
 
 def clean_description(raw_description):
@@ -198,8 +197,9 @@ def validate_listing_fields(title_raw, price_raw, phone_raw, description_raw):
         if price_value < PRICE_MIN or price_value > PRICE_MAX:
             errors.append(f"Price must be between {PRICE_MIN} and {PRICE_MAX}.")
 
-    if len(description) < DESCRIPTION_MIN_LENGTH or len(description.split()) < DESCRIPTION_MIN_WORDS:
-        errors.append("Description is too short. Add more useful details.")
+    description_word_count = len(description.split()) if description else 0
+    if description_word_count > DESCRIPTION_MAX_WORDS:
+        errors.append(f"Description is too long. Keep it under {DESCRIPTION_MAX_WORDS} words.")
 
     return {
         "errors": errors,
@@ -207,6 +207,18 @@ def validate_listing_fields(title_raw, price_raw, phone_raw, description_raw):
         "phone": phone,
         "description": description,
         "price": str(price_value) if price_value is not None else "",
+    }
+
+
+def build_create_form_data(default_phone=""):
+    return {
+        "title": (request.form.get("title") or "").strip(),
+        "price": (request.form.get("price") or "").strip(),
+        "phone": (request.form.get("phone") or default_phone or "").strip(),
+        "leave_date": (request.form.get("leave_date") or "").strip(),
+        "category": (request.form.get("category") or "").strip(),
+        "description": request.form.get("description") or "",
+        "featured": "featured" in request.form,
     }
 
 
@@ -738,7 +750,13 @@ def google_authorized():
 def create():
     user = current_user_record()
     phone_prefill = user["phone"] if user and user.get("auth_provider") != "google" else ""
-    return render_template("create-listing.html", user_phone=phone_prefill)
+    return render_template(
+        "create-listing.html",
+        user_phone=phone_prefill,
+        form_data={},
+        form_errors=[],
+        description_max_words=DESCRIPTION_MAX_WORDS,
+    )
 
 
 @app.route("/dashboard")
@@ -812,6 +830,20 @@ def add_listing():
     conn = get_db()
     cursor = conn.cursor()
     owner_phone = get_authenticated_owner_phone()
+    form_data = build_create_form_data(default_phone=owner_phone)
+
+    def render_create_errors(errors):
+        conn.close()
+        return (
+            render_template(
+                "create-listing.html",
+                user_phone=owner_phone,
+                form_data=form_data,
+                form_errors=errors,
+                description_max_words=DESCRIPTION_MAX_WORDS,
+            ),
+            400,
+        )
 
     if not owner_phone:
         conn.close()
@@ -819,17 +851,14 @@ def add_listing():
 
     image = request.files.get("image")
     if image is None or not image.filename:
-        conn.close()
-        return "Image is required", 400
+        return render_create_errors(["Image is required."])
 
     safe_name = secure_filename(image.filename)
     if not safe_name:
-        conn.close()
-        return "Invalid image filename", 400
+        return render_create_errors(["Invalid image filename."])
 
     if not allowed_file(image.filename):
-        conn.close()
-        return "Invalid image format", 400
+        return render_create_errors(["Invalid image format. Use PNG, JPG, JPEG, or WEBP."])
 
     validated = validate_listing_fields(
         title_raw=request.form.get("title"),
@@ -838,20 +867,17 @@ def add_listing():
         description_raw=request.form.get("description"),
     )
     if validated["errors"]:
-        conn.close()
-        return " | ".join(validated["errors"]), 400
+        return render_create_errors(validated["errors"])
 
     leave_date = (request.form.get("leave_date") or "").strip()
     try:
         datetime.strptime(leave_date, "%Y-%m-%d")
     except ValueError:
-        conn.close()
-        return "Leaving date is invalid.", 400
+        return render_create_errors(["Leaving date is invalid."])
 
     category = (request.form.get("category") or "").strip()
     if not category:
-        conn.close()
-        return "Category is required.", 400
+        return render_create_errors(["Category is required."])
 
     title = validated["title"]
     price = validated["price"]
@@ -921,7 +947,12 @@ def edit_listing(id):
         return "Listing not found or not allowed", 404
 
     conn.close()
-    return render_template("edit.html", listing=listing)
+    return render_template(
+        "edit.html",
+        listing=listing,
+        form_errors=[],
+        description_max_words=DESCRIPTION_MAX_WORDS,
+    )
 
 
 @app.route("/update/<int:id>", methods=["POST"])
@@ -945,6 +976,29 @@ def update_listing(id):
         conn.close()
         return "Listing not found or not allowed", 404
 
+    listing_form = {
+        "id": id,
+        "image": current_listing["image"],
+        "title": (request.form.get("title") or current_listing["title"] or "").strip(),
+        "price": (request.form.get("price") or current_listing["price"] or "").strip(),
+        "category": (request.form.get("category") or current_listing["category"] or "").strip(),
+        "phone": (request.form.get("phone") or current_listing["phone"] or "").strip(),
+        "leave_date": (request.form.get("leave_date") or current_listing["leave_date"] or "").strip(),
+        "description": request.form.get("description", current_listing["description"] or ""),
+    }
+
+    def render_edit_errors(errors):
+        conn.close()
+        return (
+            render_template(
+                "edit.html",
+                listing=listing_form,
+                form_errors=errors,
+                description_max_words=DESCRIPTION_MAX_WORDS,
+            ),
+            400,
+        )
+
     current_image = current_listing["image"]
     validated = validate_listing_fields(
         title_raw=request.form.get("title", current_listing["title"]),
@@ -953,8 +1007,7 @@ def update_listing(id):
         description_raw=request.form.get("description", current_listing["description"]),
     )
     if validated["errors"]:
-        conn.close()
-        return " | ".join(validated["errors"]), 400
+        return render_edit_errors(validated["errors"])
 
     title = validated["title"]
     price = validated["price"]
@@ -965,8 +1018,7 @@ def update_listing(id):
     try:
         datetime.strptime(leave_date, "%Y-%m-%d")
     except ValueError:
-        conn.close()
-        return "Leaving date is invalid.", 400
+        return render_edit_errors(["Leaving date is invalid."])
 
     image = request.files.get("image")
     image_filename = current_image
@@ -976,8 +1028,7 @@ def update_listing(id):
         if safe_name:
             image_filename = str(uuid.uuid4()) + "_" + safe_name
             if not allowed_file(image.filename):
-                conn.close()
-                return "Invalid image format", 400
+                return render_edit_errors(["Invalid image format. Use PNG, JPG, JPEG, or WEBP."])
             image.save(os.path.join(app.config["UPLOAD_FOLDER"], image_filename))
 
             if current_image:

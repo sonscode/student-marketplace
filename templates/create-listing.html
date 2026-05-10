@@ -211,6 +211,32 @@
             font-size: 0.9rem;
         }
 
+        .inline-errors {
+            margin-top: 14px;
+            border: 1px solid #f0b8b8;
+            background: #fff3f3;
+            border-radius: 12px;
+            padding: 10px 12px;
+            color: #732020;
+            font-size: 0.92rem;
+        }
+
+        .inline-errors p {
+            margin: 0 0 6px;
+            font-weight: 700;
+        }
+
+        .inline-errors ul {
+            margin: 0;
+            padding-left: 18px;
+        }
+
+        .field-hint {
+            margin: -2px 0 0;
+            color: var(--muted);
+            font-size: 0.82rem;
+        }
+
         @keyframes rise {
             from {
                 opacity: 0;
@@ -237,39 +263,52 @@
         <section class="card">
             <h1>Add New Listing</h1>
             <p class="subtitle">Fill in the details below to publish your item.</p>
+            {% set data = form_data or {} %}
+
+            {% if form_errors %}
+                <div class="inline-errors" role="alert">
+                    <p>Please fix the following:</p>
+                    <ul>
+                        {% for error in form_errors %}
+                            <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
 
             <form method="POST" action="/add" enctype="multipart/form-data">
                 <div class="grid">
                     <div class="field">
                         <label for="title">Item Name</label>
-                        <input id="title" type="text" name="title" placeholder="e.g. Study Table" required>
+                        <input id="title" type="text" name="title" placeholder="e.g. Study Table" value="{{ data.get('title', '') }}" required>
                     </div>
 
                     <div class="field">
                         <label for="price">Price</label>
-                        <input id="price" type="number" name="price" min="500" max="50000000" step="1" placeholder="e.g. 15000" required>
+                        <input id="price" type="number" name="price" min="500" max="50000000" step="1" placeholder="e.g. 15000" value="{{ data.get('price', '') }}" required>
                     </div>
 
                     <div class="field">
                         <label for="phone">Phone Number</label>
-                        <input id="phone" type="text" name="phone" inputmode="numeric" pattern="^[0-9+ ]{9,16}$" placeholder="e.g. 676210234 or +237676210234" value="{{ user_phone or '' }}" required>
+                        <input id="phone" type="text" name="phone" inputmode="numeric" pattern="^[0-9+ ]{9,16}$" placeholder="e.g. 676210234 or +237676210234" value="{{ data.get('phone', user_phone or '') }}" required>
                     </div>
 
                     <div class="field">
                         <label for="leave_date">Leaving Date</label>
-                        <input id="leave_date" type="date" name="leave_date" required>
+                        <input id="leave_date" type="date" name="leave_date" value="{{ data.get('leave_date', '') }}" required>
                     </div>
 
                     <div class="field">
                         <label for="category">Category</label>
+                        {% set selected_category = data.get('category', '') %}
                         <select id="category" name="category" required>
-                            <option value="">Select category</option>
-                            <option value="Electronics">Electronics</option>
-                            <option value="Furniture">Furniture</option>
-                            <option value="Clothing">Clothing</option>
-                            <option value="Room">Room</option>
-                            <option value="Kitchen">Kitchen</option>
-                            <option value="Other">Other</option>
+                            <option value="" {% if selected_category == '' %}selected{% endif %}>Select category</option>
+                            <option value="Electronics" {% if selected_category == 'Electronics' %}selected{% endif %}>Electronics</option>
+                            <option value="Furniture" {% if selected_category == 'Furniture' %}selected{% endif %}>Furniture</option>
+                            <option value="Clothing" {% if selected_category == 'Clothing' %}selected{% endif %}>Clothing</option>
+                            <option value="Room" {% if selected_category == 'Room' %}selected{% endif %}>Room</option>
+                            <option value="Kitchen" {% if selected_category == 'Kitchen' %}selected{% endif %}>Kitchen</option>
+                            <option value="Other" {% if selected_category == 'Other' %}selected{% endif %}>Other</option>
                         </select>
                     </div>
 
@@ -280,11 +319,12 @@
 
                     <div class="field full">
                         <label for="description">Description</label>
-                        <textarea id="description" name="description" minlength="20" placeholder="Describe your item condition, accessories, and pickup details..." required></textarea>
+                        <textarea id="description" name="description" placeholder="Optional details about condition, accessories, pickup...">{{ data.get('description', '') }}</textarea>
+                        <p class="field-hint">Optional. Keep it under {{ description_max_words }} words.</p>
                     </div>
 
                     <label class="check full" for="featured">
-                        <input id="featured" type="checkbox" name="featured">
+                        <input id="featured" type="checkbox" name="featured" {% if data.get('featured') %}checked{% endif %}>
                         <span>Boost as featured listing (500 XAF)</span>
                     </label>
                 </div>
