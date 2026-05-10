@@ -311,6 +311,16 @@
             background: #fcfbf8;
         }
 
+        .auth-status {
+            margin-bottom: 14px;
+            border: 1px solid var(--line);
+            background: #fff8ed;
+            border-radius: 12px;
+            padding: 10px 12px;
+            color: #37414f;
+            font-size: 0.9rem;
+        }
+
         @keyframes rise {
             from {
                 opacity: 0;
@@ -338,6 +348,12 @@
         <div class="topbar">
             <a class="back" href="{{ url_for('home', category=request.args.get('category'), search=request.args.get('search')) }}">⬅ Back to Listings</a>
         </div>
+
+        {% if is_logged_in %}
+            <p class="auth-status">Logged in as <strong>{{ current_user['full_name'] }}</strong> ({{ current_user['phone'] }}).</p>
+        {% else %}
+            <p class="auth-status">Browsing as guest. Login to manage your own listings.</p>
+        {% endif %}
 
         <article class="card">
             <h1 class="title">{{ item['title'] }}</h1>

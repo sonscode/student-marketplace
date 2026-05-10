@@ -201,6 +201,16 @@
             background: #fff;
         }
 
+        .auth-status {
+            margin-bottom: 14px;
+            border: 1px solid var(--line);
+            background: #fff8ed;
+            border-radius: 12px;
+            padding: 10px 12px;
+            color: #37414f;
+            font-size: 0.9rem;
+        }
+
         @keyframes rise {
             from {
                 opacity: 0;
@@ -222,6 +232,7 @@
 <body>
     <main class="page">
         <a class="back" href="{{ url_for('home') }}">⬅ Back to Listings</a>
+        <p class="auth-status">Posting as <strong>{{ current_user['full_name'] }}</strong> ({{ current_user['phone'] }}).</p>
 
         <section class="card">
             <h1>Add New Listing</h1>

@@ -16,6 +16,7 @@
             --line: #ded8ca;
             --brand: #d0562d;
             --soft: #fcfbf8;
+            --auth-bg: #fff8ed;
         }
 
         * {
@@ -97,6 +98,7 @@
         }
 
         input,
+        select,
         textarea {
             width: 100%;
             border: 1px solid var(--line);
@@ -110,6 +112,7 @@
         }
 
         input:focus,
+        select:focus,
         textarea:focus {
             border-color: #d68868;
             box-shadow: 0 0 0 3px rgba(208, 86, 45, 0.15);
@@ -192,6 +195,16 @@
             background: #fff;
         }
 
+        .auth-status {
+            margin-bottom: 14px;
+            border: 1px solid var(--line);
+            background: var(--auth-bg);
+            border-radius: 12px;
+            padding: 10px 12px;
+            font-size: 0.9rem;
+            color: #37414f;
+        }
+
         @keyframes rise {
             from {
                 opacity: 0;
@@ -211,6 +224,8 @@
             <a class="nav" href="{{ url_for('listing_detail', id=listing['id']) }}">View Listing</a>
         </div>
 
+        <p class="auth-status">Logged in as <strong>{{ current_user['full_name'] }}</strong> ({{ current_user['phone'] }})</p>
+
         <section class="card">
             <h1>Edit Listing</h1>
             <p class="subtitle">Update the fields below and save your changes.</p>
@@ -224,6 +239,27 @@
                 <div class="field">
                     <label for="price">Price</label>
                     <input id="price" type="text" name="price" value="{{ listing['price'] }}" required>
+                </div>
+
+                <div class="field">
+                    <label for="category">Category</label>
+                    {% set categories = ['Electronics', 'Furniture', 'Clothing', 'Room', 'Kitchen', 'Other'] %}
+                    <select id="category" name="category" required>
+                        {% if listing['category'] not in categories %}
+                            <option value="{{ listing['category'] }}" selected>{{ listing['category'] }}</option>
+                        {% endif %}
+                        <option value="Electronics" {% if listing['category'] == 'Electronics' %}selected{% endif %}>Electronics</option>
+                        <option value="Furniture" {% if listing['category'] == 'Furniture' %}selected{% endif %}>Furniture</option>
+                        <option value="Clothing" {% if listing['category'] == 'Clothing' %}selected{% endif %}>Clothing</option>
+                        <option value="Room" {% if listing['category'] == 'Room' %}selected{% endif %}>Room</option>
+                        <option value="Kitchen" {% if listing['category'] == 'Kitchen' %}selected{% endif %}>Kitchen</option>
+                        <option value="Other" {% if listing['category'] == 'Other' %}selected{% endif %}>Other</option>
+                    </select>
+                </div>
+
+                <div class="field">
+                    <label for="leave_date">Leaving Date</label>
+                    <input id="leave_date" type="date" name="leave_date" value="{{ listing['leave_date'] }}" required>
                 </div>
 
                 <div class="field">

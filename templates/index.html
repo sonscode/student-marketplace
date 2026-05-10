@@ -275,6 +275,16 @@
             cursor: pointer;
         }
 
+        .auth-status {
+            margin-bottom: 14px;
+            border: 1px solid var(--line);
+            background: #fff8ed;
+            border-radius: 12px;
+            padding: 10px 12px;
+            color: #37414f;
+            font-size: 0.9rem;
+        }
+
         .empty {
             background: #fff;
             border: 1px dashed var(--line);
@@ -335,6 +345,12 @@
                 {% endif %}
             </div>
         </section>
+
+        {% if is_logged_in %}
+            <p class="auth-status">Logged in as <strong>{{ current_user['full_name'] }}</strong> ({{ current_user['phone'] }}). You can edit and delete only your own listings.</p>
+        {% else %}
+            <p class="auth-status">You are browsing as a guest. Login to create listings and manage your own posts.</p>
+        {% endif %}
 
         <section class="controls">
             <form class="search" action="/" method="get">

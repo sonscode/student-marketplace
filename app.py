@@ -492,7 +492,7 @@ def update_listing(id):
     cursor = conn.cursor()
     user_phone = get_session_phone()
 
-    cursor.execute("SELECT image, owner_phone FROM listings WHERE id = ?", (id,))
+    cursor.execute("SELECT image, owner_phone, category, leave_date FROM listings WHERE id = ?", (id,))
     current_listing = cursor.fetchone()
 
     if current_listing is None:
@@ -509,6 +509,8 @@ def update_listing(id):
     title = request.form["title"]
     price = request.form["price"]
     phone = normalize_phone(request.form.get("phone")) or user_phone
+    category = request.form.get("category", "").strip() or current_listing["category"]
+    leave_date = request.form.get("leave_date", "").strip() or current_listing["leave_date"]
     description = request.form.get("description", "").strip()
     image = request.files.get("image")
     image_filename = current_image
@@ -525,8 +527,8 @@ def update_listing(id):
                     os.remove(old_image_path)
 
     cursor.execute(
-        "UPDATE listings SET title = ?, price = ?, phone = ?, description = ?, image = ? WHERE id = ?",
-        (title, price, phone, description, image_filename, id),
+        "UPDATE listings SET title = ?, price = ?, category = ?, phone = ?, leave_date = ?, description = ?, image = ? WHERE id = ?",
+        (title, price, category, phone, leave_date, description, image_filename, id),
     )
     conn.commit()
     conn.close()
