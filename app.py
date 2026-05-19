@@ -8,13 +8,13 @@ from datetime import datetime
 from functools import wraps
 
 import sqlite3
-from flask import Flask, flash, render_template, request, redirect, url_for, session
+from flask import Flask, flash, jsonify, render_template, request, redirect, url_for, session
 from markupsafe import Markup
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 from flask_dance.contrib.google import make_google_blueprint, google
 from dotenv import load_dotenv
-from services import momo
+from services import campay
 
 # Exceptions for image file
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
@@ -181,7 +181,7 @@ def env_int(name, default):
 PRICE_MIN = 500
 PRICE_MAX = 50000000
 DESCRIPTION_MAX_WORDS = 50
-BOOST_LISTING_AMOUNT = env_int("BOOST_LISTING_AMOUNT", 500)
+BOOST_LISTING_AMOUNT = env_int("BOOST_LISTING_AMOUNT", 1)
 
 PAYMENT_STATUS_PENDING = "PENDING"
 PAYMENT_STATUS_SUCCESSFUL = "SUCCESSFUL"
@@ -398,14 +398,18 @@ def resolve_internal_payment_status(provider_status):
         return ""
     if normalized in {"PENDING", "INITIATED", "PROCESSING"}:
         return PAYMENT_STATUS_PENDING
-    if normalized == PAYMENT_STATUS_SUCCESSFUL:
+    if normalized in {"SUCCESS", PAYMENT_STATUS_SUCCESSFUL}:
         return PAYMENT_STATUS_SUCCESSFUL
-    if normalized in {"FAILED", "REJECTED", "CANCELLED", "TIMEOUT", "EXPIRED"}:
+    if normalized in {"FAIL", "FAILED", "REJECTED", "CANCELLED", "TIMEOUT", "EXPIRED"}:
         return PAYMENT_STATUS_FAILED
     return normalized
 
 
 def payment_provider_feedback(result, default_message):
+    provider_error = str(result.get("error") or "").strip()
+    if provider_error:
+        return f"{default_message} ({provider_error})"
+
     payload = result.get("data")
     if not isinstance(payload, dict):
         return default_message
@@ -416,18 +420,18 @@ def payment_provider_feedback(result, default_message):
     return f"{default_message} ({reason})"
 
 
-def create_pending_payment_record(cursor, listing_id, amount):
-    reference_id = str(uuid.uuid4())
+def create_pending_payment_record(cursor, listing_id, amount, phone):
+    reference = str(uuid.uuid4())
     created_at = datetime.utcnow().isoformat(timespec="seconds")
     cursor.execute(
         """
-        INSERT INTO payments (listing_id, reference_id, amount, status, created_at)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO payments (listing_id, reference, amount, status, phone, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
         """,
-        (listing_id, reference_id, amount, PAYMENT_STATUS_PENDING, created_at),
+        (listing_id, reference, amount, PAYMENT_STATUS_PENDING, phone, created_at),
     )
     cursor.execute(
-        "SELECT id, listing_id, reference_id, amount, status, created_at FROM payments WHERE id = ?",
+        "SELECT id, listing_id, reference AS reference_id, amount, status, phone, created_at FROM payments WHERE id = ?",
         (cursor.lastrowid,),
     )
     return cursor.fetchone()
@@ -444,7 +448,7 @@ def get_listing_for_owner(cursor, listing_id, owner_phone):
 def get_pending_payment_for_listing(cursor, listing_id):
     cursor.execute(
         """
-        SELECT id, listing_id, reference_id, amount, status, created_at
+        SELECT id, listing_id, reference AS reference_id, amount, status, phone, created_at
         FROM payments
         WHERE listing_id = ? AND status = ?
         ORDER BY id DESC
@@ -455,31 +459,79 @@ def get_pending_payment_for_listing(cursor, listing_id):
     return cursor.fetchone()
 
 
-def get_payment_for_owner(cursor, reference_id, owner_phone):
+def get_payment_for_owner(cursor, payment_reference, owner_phone):
     cursor.execute(
         """
-        SELECT p.id, p.listing_id, p.reference_id, p.amount, p.status, p.created_at,
+        SELECT p.id, p.listing_id, p.reference AS reference_id, p.amount, p.status, p.phone, p.created_at,
                l.owner_phone, l.is_featured
         FROM payments p
         JOIN listings l ON l.id = p.listing_id
-        WHERE p.reference_id = ? AND l.owner_phone = ?
+        WHERE p.reference = ? AND l.owner_phone = ?
         LIMIT 1
         """,
-        (reference_id, owner_phone),
+        (payment_reference, owner_phone),
     )
     return cursor.fetchone()
 
 
-def update_payment_status_record(cursor, reference_id, status):
+def get_payment_by_reference(cursor, payment_reference):
+    cursor.execute(
+        """
+        SELECT p.id, p.listing_id, p.reference AS reference_id, p.amount, p.status, p.phone, p.created_at,
+               l.owner_phone, l.is_featured
+        FROM payments p
+        JOIN listings l ON l.id = p.listing_id
+        WHERE p.reference = ?
+        LIMIT 1
+        """,
+        (payment_reference,),
+    )
+    return cursor.fetchone()
+
+
+def update_payment_status_record(cursor, payment_reference, status):
     normalized_status = resolve_internal_payment_status(status) or PAYMENT_STATUS_PENDING
     cursor.execute(
-        "UPDATE payments SET status = ? WHERE reference_id = ?",
-        (normalized_status, reference_id),
+        "UPDATE payments SET status = ? WHERE reference = ?",
+        (normalized_status, payment_reference),
     )
 
 
 def activate_listing_from_payment(cursor, listing_id):
     cursor.execute("UPDATE listings SET is_featured = 1 WHERE id = ?", (listing_id,))
+
+
+def update_payment_reference_record(cursor, current_reference, new_reference):
+    if not new_reference or new_reference == current_reference:
+        return
+    cursor.execute(
+        "UPDATE payments SET reference = ? WHERE reference = ?",
+        (new_reference, current_reference),
+    )
+
+
+def update_payment_phone_record(cursor, payment_reference, phone):
+    if not phone:
+        return
+    cursor.execute(
+        "UPDATE payments SET phone = ? WHERE reference = ?",
+        (phone, payment_reference),
+    )
+
+
+def extract_listing_id_from_external_reference(external_reference):
+    raw_reference = (external_reference or "").strip()
+    if not raw_reference:
+        return None
+
+    if raw_reference.isdigit():
+        return int(raw_reference)
+
+    match = re.search(r"listing-(\d+)", raw_reference, flags=re.IGNORECASE)
+    if match:
+        return int(match.group(1))
+
+    return None
 
 
 # creating table
@@ -545,9 +597,10 @@ def init_db():
         CREATE TABLE IF NOT EXISTS payments(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             listing_id INTEGER NOT NULL,
-            reference_id TEXT NOT NULL UNIQUE,
+            reference TEXT NOT NULL UNIQUE,
             amount INTEGER NOT NULL,
             status TEXT NOT NULL,
+            phone TEXT,
             created_at TEXT NOT NULL
         )
         """
@@ -558,20 +611,34 @@ def init_db():
 
     if "listing_id" not in payment_columns:
         cursor.execute("ALTER TABLE payments ADD COLUMN listing_id INTEGER")
-    if "reference_id" not in payment_columns:
-        cursor.execute("ALTER TABLE payments ADD COLUMN reference_id TEXT")
+    if "reference" not in payment_columns:
+        cursor.execute("ALTER TABLE payments ADD COLUMN reference TEXT")
     if "amount" not in payment_columns:
         cursor.execute("ALTER TABLE payments ADD COLUMN amount INTEGER DEFAULT 0")
     if "status" not in payment_columns:
         cursor.execute("ALTER TABLE payments ADD COLUMN status TEXT DEFAULT 'PENDING'")
+    if "phone" not in payment_columns:
+        cursor.execute("ALTER TABLE payments ADD COLUMN phone TEXT")
     if "created_at" not in payment_columns:
         cursor.execute("ALTER TABLE payments ADD COLUMN created_at TEXT")
 
-    cursor.execute("SELECT id FROM payments WHERE reference_id IS NULL OR TRIM(reference_id) = ''")
+    payment_columns_set = set(payment_columns)
+    if "reference_id" in payment_columns_set:
+        cursor.execute(
+            """
+            UPDATE payments
+            SET reference = reference_id
+            WHERE (reference IS NULL OR TRIM(reference) = '')
+              AND reference_id IS NOT NULL
+              AND TRIM(reference_id) != ''
+            """
+        )
+
+    cursor.execute("SELECT id FROM payments WHERE reference IS NULL OR TRIM(reference) = ''")
     payment_rows_missing_reference = cursor.fetchall()
     for payment_row in payment_rows_missing_reference:
         cursor.execute(
-            "UPDATE payments SET reference_id = ? WHERE id = ?",
+            "UPDATE payments SET reference = ? WHERE id = ?",
             (str(uuid.uuid4()), payment_row["id"]),
         )
 
@@ -587,8 +654,12 @@ def init_db():
         "UPDATE payments SET created_at = ? WHERE created_at IS NULL OR TRIM(created_at) = ''",
         (fallback_payment_timestamp,),
     )
+    cursor.execute(
+        "UPDATE payments SET phone = '' WHERE phone IS NULL",
+    )
 
-    cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_reference_unique ON payments(reference_id)")
+    cursor.execute("DROP INDEX IF EXISTS idx_payments_reference_unique")
+    cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_reference_unique ON payments(reference)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_payments_listing_id ON payments(listing_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status)")
 
@@ -946,7 +1017,7 @@ def dashboard():
 
     cursor.execute(
         """
-        SELECT p.id, p.listing_id, p.reference_id, p.amount, p.status, p.created_at
+        SELECT p.id, p.listing_id, p.reference AS reference_id, p.amount, p.status, p.phone, p.created_at
         FROM payments p
         JOIN listings l ON l.id = p.listing_id
         WHERE l.owner_phone = ?
@@ -981,6 +1052,7 @@ def dashboard():
                 "reference_id": payment_row["reference_id"],
                 "amount": payment_row["amount"],
                 "status": normalized_status,
+                "phone": payment_row["phone"] or "",
                 "created_at": payment_row["created_at"],
             }
         )
@@ -1361,29 +1433,52 @@ def initiate_listing_boost(listing_id):
             )
         )
 
-    payment_row = create_pending_payment_record(cursor, listing_id, BOOST_LISTING_AMOUNT)
+    payment_row = create_pending_payment_record(cursor, listing_id, BOOST_LISTING_AMOUNT, owner_phone)
     conn.commit()
 
-    momo_result = momo.request_to_pay(
-        reference_id=payment_row["reference_id"],
+    external_reference = f"listing-{listing_id}-payment-{payment_row['id']}"
+    campay_result = campay.request_collect(
         phone=owner_phone,
         amount=BOOST_LISTING_AMOUNT,
-        external_id=f"listing-{listing_id}-payment-{payment_row['id']}",
+        external_reference=external_reference,
+        external_user=str(get_session_user_id() or ""),
+        description="Boost Listing",
     )
 
-    if not momo_result.get("ok"):
-        update_payment_status_record(cursor, payment_row["reference_id"], PAYMENT_STATUS_FAILED)
+    provider_reference = (campay_result.get("reference") or "").strip()
+    if provider_reference:
+        update_payment_reference_record(cursor, payment_row["reference_id"], provider_reference)
+        payment_row_reference = provider_reference
+    else:
+        payment_row_reference = payment_row["reference_id"]
+
+    if not campay_result.get("ok"):
+        if provider_reference:
+            update_payment_status_record(cursor, provider_reference, PAYMENT_STATUS_FAILED)
+        else:
+            update_payment_status_record(cursor, payment_row_reference, PAYMENT_STATUS_FAILED)
         conn.commit()
         conn.close()
-        flash(payment_provider_feedback(momo_result, "Payment request could not be sent."), "error")
+        flash(payment_provider_feedback(campay_result, "CamPay payment request could not be sent."), "error")
         return redirect(next_url)
 
+    ussd_code = ""
+    if isinstance(campay_result.get("data"), dict):
+        ussd_code = str(campay_result["data"].get("ussd_code") or "").strip()
+
+    conn.commit()
     conn.close()
-    flash("Payment request sent. Approve the prompt on your phone, then verify payment.", "success")
+    if ussd_code:
+        flash(
+            f"CamPay request sent. Phone prompt should appear automatically. If needed, dial {ussd_code}.",
+            "success",
+        )
+    else:
+        flash("CamPay request sent. Approve the prompt on your phone, then verify payment.", "success")
     return redirect(
         url_for(
             "verify_listing_payment",
-            reference_id=payment_row["reference_id"],
+            reference_id=payment_row_reference,
             next=next_url,
         )
     )
@@ -1416,7 +1511,7 @@ def verify_listing_payment(reference_id):
         flash("Payment already confirmed. Listing is featured.", "success")
         return redirect(next_url)
 
-    status_result = momo.get_request_to_pay_status(reference_id)
+    status_result = campay.get_transaction_status(reference_id)
     provider_status = resolve_internal_payment_status(status_result.get("status"))
 
     if not status_result.get("ok") and not provider_status:
@@ -1427,24 +1522,80 @@ def verify_listing_payment(reference_id):
     if not provider_status:
         provider_status = current_status
 
+    payload = status_result.get("data")
+    if isinstance(payload, dict):
+        remote_phone = normalize_phone(payload.get("phone_number") or payload.get("from"))
+        update_payment_phone_record(cursor, reference_id, remote_phone)
+
     update_payment_status_record(cursor, reference_id, provider_status)
 
     if provider_status == PAYMENT_STATUS_SUCCESSFUL:
         activate_listing_from_payment(cursor, payment["listing_id"])
         conn.commit()
         conn.close()
-        flash("Payment successful. Your listing is now featured.", "success")
+        flash("CamPay payment successful. Your listing is now featured.", "success")
         return redirect(next_url)
 
     conn.commit()
     conn.close()
 
     if provider_status == PAYMENT_STATUS_PENDING:
-        flash("Payment is still pending. Complete the MoMo prompt and verify again.", "info")
+        flash("Payment is still pending. Complete the CamPay prompt and verify again.", "info")
     else:
         flash(payment_provider_feedback(status_result, "Payment failed or was cancelled."), "error")
     return redirect(next_url)
 
+
+@app.route("/payments/campay/webhook", methods=["GET", "POST"])
+def campay_webhook():
+    payload = request.get_json(silent=True) if request.method == "POST" else None
+    if not isinstance(payload, dict) or not payload:
+        payload = {key: value for key, value in request.values.items()}
+
+    payment_reference = (payload.get("reference") or "").strip()
+    raw_status = (payload.get("status") or "").strip()
+    external_reference = (payload.get("external_reference") or "").strip()
+
+    if not payment_reference or not raw_status:
+        return jsonify({"ok": False, "message": "Missing reference or status"}), 400
+
+    webhook_key = (os.getenv("CAMPAY_WEBHOOK_KEY") or "").strip()
+    if webhook_key:
+        verification_result = campay.verify_webhook_signature(payload, webhook_key)
+        if not verification_result.get("ok"):
+            return jsonify({"ok": False, "message": verification_result.get("error", "Invalid signature")}), 403
+
+    provider_status = resolve_internal_payment_status(raw_status)
+    if not provider_status:
+        provider_status = PAYMENT_STATUS_PENDING
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    payment = get_payment_by_reference(cursor, payment_reference)
+    if payment is None:
+        listing_id = extract_listing_id_from_external_reference(external_reference)
+        if listing_id is not None:
+            pending_payment = get_pending_payment_for_listing(cursor, listing_id)
+            if pending_payment is not None:
+                update_payment_reference_record(cursor, pending_payment["reference_id"], payment_reference)
+                payment = get_payment_by_reference(cursor, payment_reference)
+
+    if payment is None:
+        conn.close()
+        return jsonify({"ok": True, "message": "Webhook received, payment not found"}), 200
+
+    remote_phone = normalize_phone(payload.get("phone_number") or payload.get("from"))
+    update_payment_phone_record(cursor, payment_reference, remote_phone)
+    update_payment_status_record(cursor, payment_reference, provider_status)
+
+    if provider_status == PAYMENT_STATUS_SUCCESSFUL:
+        activate_listing_from_payment(cursor, payment["listing_id"])
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({"ok": True, "status": provider_status}), 200
 
 if __name__ == "__main__":
     app.run(debug=env_flag("FLASK_DEBUG"))
