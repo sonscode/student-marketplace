@@ -325,6 +325,39 @@
             font-size: 0.9rem;
         }
 
+        .flash-stack {
+            margin-bottom: 14px;
+            display: grid;
+            gap: 8px;
+        }
+
+        .flash {
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 10px 12px;
+            font-size: 0.9rem;
+            background: #fff;
+            margin: 0;
+        }
+
+        .flash.success {
+            border-color: #bbdfc4;
+            background: #edf9f1;
+            color: #1b5a32;
+        }
+
+        .flash.error {
+            border-color: #f0b8b8;
+            background: #fff2f2;
+            color: #772323;
+        }
+
+        .flash.info {
+            border-color: #e8dbaf;
+            background: #fff9ea;
+            color: #6f4e15;
+        }
+
         .empty {
             background: #fff;
             border: 1px dashed var(--line);
@@ -446,6 +479,16 @@
         {% else %}
             <p class="auth-status">You are browsing as a guest. Login to create listings and manage your own posts.</p>
         {% endif %}
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <section class="flash-stack">
+                    {% for category, message in messages %}
+                        <p class="flash {{ category }}">{{ message }}</p>
+                    {% endfor %}
+                </section>
+            {% endif %}
+        {% endwith %}
 
         <section class="controls">
             <form class="search" action="/" method="get">

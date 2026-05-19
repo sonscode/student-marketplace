@@ -152,24 +152,6 @@
             resize: vertical;
         }
 
-        .check {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            border: 1px solid var(--line);
-            border-radius: 12px;
-            padding: 12px;
-            background: #fff7f4;
-            font-size: 0.92rem;
-        }
-
-        .check input {
-            width: 16px;
-            height: 16px;
-            margin: 0;
-            accent-color: var(--brand);
-        }
-
         .actions {
             display: flex;
             align-items: center;
@@ -322,11 +304,6 @@
                         <textarea id="description" name="description" placeholder="Optional details about condition, accessories, pickup...">{{ data.get('description', '') }}</textarea>
                         <p class="field-hint">Optional. Keep it under {{ description_max_words }} words.</p>
                     </div>
-
-                    <label class="check full" for="featured">
-                        <input id="featured" type="checkbox" name="featured" {% if data.get('featured') %}checked{% endif %}>
-                        <span>Boost as featured listing (500 XAF)</span>
-                    </label>
                 </div>
 
                 <div class="actions">

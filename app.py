@@ -6,146 +6,15 @@ import hashlib
 import ipaddress
 from datetime import datetime
 from functools import wraps
-import requests
-import base64
 
 import sqlite3
-from flask import Flask, render_template, request, redirect, url_for, session
+from flask import Flask, flash, render_template, request, redirect, url_for, session
 from markupsafe import Markup
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 from flask_dance.contrib.google import make_google_blueprint, google
 from dotenv import load_dotenv
-
-# Creating API user for MTN
-def create_api_user():
-
-    reference_id = str(uuid.uuid4())
-
-    headers = {
-        "X-Reference-Id": reference_id,
-        "Ocp-Apim-Subscription-Key":
-            os.getenv("MOMO_SUBSCRIPTION_KEY"),
-        "Content-Type": "application/json"
-    }
-
-    body = {
-        "providerCallbackHost": "example.com"
-    }
-
-    response = requests.post(
-        "https://sandbox.momodeveloper.mtn.com/v1_0/apiuser",
-        json=body,
-        headers=headers
-    )
-
-    return {
-        "reference_id": reference_id,
-        "status_code": response.status_code,
-        "response": response.text
-    }
-
-# Creating API key for MTN
-def create_api_key(api_user):
-    headers = {
-        "Ocp-Apim-Subscription-Key":
-            os.getenv("MOMO_SUBSCRIPTION_KEY")
-    }
-
-    response = requests.post(
-        f"https://sandbox.momodeveloper.mtn.com/v1_0/apiuser/{api_user}/apikey",
-        headers=headers
-    )
-
-    return response.json()
-
-def get_momo_token():
-
-    api_user = os.getenv("MOMO_API_USER")
-    api_key = os.getenv("MOMO_API_KEY")
-
-    auth_string = f"{api_user}:{api_key}"
-
-    encoded_auth = base64.b64encode(
-        auth_string.encode()
-    ).decode()
-
-    headers = {
-        "Authorization": f"Basic {encoded_auth}",
-        "Ocp-Apim-Subscription-Key":
-            os.getenv("MOMO_SUBSCRIPTION_KEY")
-    }
-
-    response = requests.post(
-        "https://sandbox.momodeveloper.mtn.com/collection/token/",
-        headers=headers
-    )
-
-    return response.json()
-
-# Creating payment request fxn
-def request_to_pay(phone, amount):
-
-    token_data = get_momo_token()
-
-    access_token = token_data.get("access_token")
-
-    reference_id = str(uuid.uuid4())
-
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "X-Reference-Id": reference_id,
-        "X-Target-Environment": "sandbox",
-        "Ocp-Apim-Subscription-Key":
-            os.getenv("MOMO_SUBSCRIPTION_KEY"),
-        "Content-Type": "application/json"
-    }
-
-    body = {
-        "amount": str(amount),
-        "currency": "EUR",
-        "externalId": "12345",
-        "payer": {
-            "partyIdType": "MSISDN",
-            "partyId": phone
-        },
-        "payerMessage": "Boost Listing",
-        "payeeNote": "Azison Marketplace"
-    }
-
-    response = requests.post(
-        "https://sandbox.momodeveloper.mtn.com/collection/v1_0/requesttopay",
-        json=body,
-        headers=headers
-    )
-
-    return {
-        "status_code": response.status_code,
-        "response": response.text,
-        "reference_id": reference_id,
-        
-    }
-
-# Creating payment status fxn
-def get_payment_status(reference_id):
-
-    token_data = get_momo_token()
-
-    access_token = token_data.get("access_token")
-
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "X-Target-Environment": "sandbox",
-        "Ocp-Apim-Subscription-Key":
-            os.getenv("MOMO_SUBSCRIPTION_KEY")
-    }
-
-    response = requests.get(
-        f"https://sandbox.momodeveloper.mtn.com/collection/v1_0/requesttopay/{reference_id}",
-        headers=headers
-    )
-
-    return response.json()
+from services import momo
 
 # Exceptions for image file
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
@@ -300,9 +169,34 @@ def sanitize_next_url(next_url):
     return next_url
 
 
+def env_int(name, default):
+    raw = (os.getenv(name) or "").strip()
+    try:
+        value = int(raw)
+        return value if value > 0 else default
+    except ValueError:
+        return default
+
+
 PRICE_MIN = 500
 PRICE_MAX = 50000000
 DESCRIPTION_MAX_WORDS = 50
+BOOST_LISTING_AMOUNT = env_int("BOOST_LISTING_AMOUNT", 500)
+
+PAYMENT_STATUS_PENDING = "PENDING"
+PAYMENT_STATUS_SUCCESSFUL = "SUCCESSFUL"
+PAYMENT_STATUS_FAILED = "FAILED"
+
+
+def normalize_payment_status(status):
+    return (status or "").strip().upper()
+
+
+def payment_next_url(default_url):
+    raw_next = request.form.get("next") or request.args.get("next")
+    if not raw_next:
+        return default_url
+    return sanitize_next_url(raw_next)
 
 
 def clean_description(raw_description):
@@ -351,7 +245,6 @@ def build_create_form_data(default_phone=""):
         "leave_date": (request.form.get("leave_date") or "").strip(),
         "category": (request.form.get("category") or "").strip(),
         "description": request.form.get("description") or "",
-        "featured": "featured" in request.form,
     }
 
 
@@ -499,6 +392,96 @@ def login_required(view_func):
     return wrapped
 
 
+def resolve_internal_payment_status(provider_status):
+    normalized = normalize_payment_status(provider_status)
+    if not normalized:
+        return ""
+    if normalized in {"PENDING", "INITIATED", "PROCESSING"}:
+        return PAYMENT_STATUS_PENDING
+    if normalized == PAYMENT_STATUS_SUCCESSFUL:
+        return PAYMENT_STATUS_SUCCESSFUL
+    if normalized in {"FAILED", "REJECTED", "CANCELLED", "TIMEOUT", "EXPIRED"}:
+        return PAYMENT_STATUS_FAILED
+    return normalized
+
+
+def payment_provider_feedback(result, default_message):
+    payload = result.get("data")
+    if not isinstance(payload, dict):
+        return default_message
+
+    reason = str(payload.get("reason") or payload.get("message") or "").strip()
+    if not reason:
+        return default_message
+    return f"{default_message} ({reason})"
+
+
+def create_pending_payment_record(cursor, listing_id, amount):
+    reference_id = str(uuid.uuid4())
+    created_at = datetime.utcnow().isoformat(timespec="seconds")
+    cursor.execute(
+        """
+        INSERT INTO payments (listing_id, reference_id, amount, status, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (listing_id, reference_id, amount, PAYMENT_STATUS_PENDING, created_at),
+    )
+    cursor.execute(
+        "SELECT id, listing_id, reference_id, amount, status, created_at FROM payments WHERE id = ?",
+        (cursor.lastrowid,),
+    )
+    return cursor.fetchone()
+
+
+def get_listing_for_owner(cursor, listing_id, owner_phone):
+    cursor.execute(
+        "SELECT id, title, owner_phone, is_featured FROM listings WHERE id = ? AND owner_phone = ?",
+        (listing_id, owner_phone),
+    )
+    return cursor.fetchone()
+
+
+def get_pending_payment_for_listing(cursor, listing_id):
+    cursor.execute(
+        """
+        SELECT id, listing_id, reference_id, amount, status, created_at
+        FROM payments
+        WHERE listing_id = ? AND status = ?
+        ORDER BY id DESC
+        LIMIT 1
+        """,
+        (listing_id, PAYMENT_STATUS_PENDING),
+    )
+    return cursor.fetchone()
+
+
+def get_payment_for_owner(cursor, reference_id, owner_phone):
+    cursor.execute(
+        """
+        SELECT p.id, p.listing_id, p.reference_id, p.amount, p.status, p.created_at,
+               l.owner_phone, l.is_featured
+        FROM payments p
+        JOIN listings l ON l.id = p.listing_id
+        WHERE p.reference_id = ? AND l.owner_phone = ?
+        LIMIT 1
+        """,
+        (reference_id, owner_phone),
+    )
+    return cursor.fetchone()
+
+
+def update_payment_status_record(cursor, reference_id, status):
+    normalized_status = resolve_internal_payment_status(status) or PAYMENT_STATUS_PENDING
+    cursor.execute(
+        "UPDATE payments SET status = ? WHERE reference_id = ?",
+        (normalized_status, reference_id),
+    )
+
+
+def activate_listing_from_payment(cursor, listing_id):
+    cursor.execute("UPDATE listings SET is_featured = 1 WHERE id = ?", (listing_id,))
+
+
 # creating table
 def init_db():
     conn = get_db()
@@ -556,6 +539,58 @@ def init_db():
     cursor.execute("UPDATE users SET auth_provider = 'local' WHERE auth_provider IS NULL OR auth_provider = ''")
     cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique ON users(email)")
     cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub_unique ON users(google_sub)")
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS payments(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            listing_id INTEGER NOT NULL,
+            reference_id TEXT NOT NULL UNIQUE,
+            amount INTEGER NOT NULL,
+            status TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+
+    cursor.execute("PRAGMA table_info(payments)")
+    payment_columns = [row[1] for row in cursor.fetchall()]
+
+    if "listing_id" not in payment_columns:
+        cursor.execute("ALTER TABLE payments ADD COLUMN listing_id INTEGER")
+    if "reference_id" not in payment_columns:
+        cursor.execute("ALTER TABLE payments ADD COLUMN reference_id TEXT")
+    if "amount" not in payment_columns:
+        cursor.execute("ALTER TABLE payments ADD COLUMN amount INTEGER DEFAULT 0")
+    if "status" not in payment_columns:
+        cursor.execute("ALTER TABLE payments ADD COLUMN status TEXT DEFAULT 'PENDING'")
+    if "created_at" not in payment_columns:
+        cursor.execute("ALTER TABLE payments ADD COLUMN created_at TEXT")
+
+    cursor.execute("SELECT id FROM payments WHERE reference_id IS NULL OR TRIM(reference_id) = ''")
+    payment_rows_missing_reference = cursor.fetchall()
+    for payment_row in payment_rows_missing_reference:
+        cursor.execute(
+            "UPDATE payments SET reference_id = ? WHERE id = ?",
+            (str(uuid.uuid4()), payment_row["id"]),
+        )
+
+    fallback_payment_timestamp = datetime.utcnow().isoformat(timespec="seconds")
+    cursor.execute(
+        "UPDATE payments SET status = ? WHERE status IS NULL OR TRIM(status) = ''",
+        (PAYMENT_STATUS_PENDING,),
+    )
+    cursor.execute(
+        "UPDATE payments SET amount = 0 WHERE amount IS NULL",
+    )
+    cursor.execute(
+        "UPDATE payments SET created_at = ? WHERE created_at IS NULL OR TRIM(created_at) = ''",
+        (fallback_payment_timestamp,),
+    )
+
+    cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_reference_unique ON payments(reference_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_payments_listing_id ON payments(listing_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status)")
 
     conn.commit()
     conn.close()
@@ -908,10 +943,25 @@ def dashboard():
         (owner_phone,),
     )
     rows = cursor.fetchall()
+
+    cursor.execute(
+        """
+        SELECT p.id, p.listing_id, p.reference_id, p.amount, p.status, p.created_at
+        FROM payments p
+        JOIN listings l ON l.id = p.listing_id
+        WHERE l.owner_phone = ?
+        ORDER BY p.id DESC
+        """,
+        (owner_phone,),
+    )
+    payment_rows = cursor.fetchall()
+
     conn.close()
 
     today = datetime.today().date()
     listings = []
+    pending_payments_by_listing = {}
+    payment_history = []
     stats = {
         "total": 0,
         "active": 0,
@@ -919,6 +969,21 @@ def dashboard():
         "expired": 0,
         "featured": 0,
     }
+
+    for payment_row in payment_rows:
+        normalized_status = resolve_internal_payment_status(payment_row["status"]) or PAYMENT_STATUS_PENDING
+        if normalized_status == PAYMENT_STATUS_PENDING and payment_row["listing_id"] not in pending_payments_by_listing:
+            pending_payments_by_listing[payment_row["listing_id"]] = payment_row["reference_id"]
+
+        payment_history.append(
+            {
+                "listing_id": payment_row["listing_id"],
+                "reference_id": payment_row["reference_id"],
+                "amount": payment_row["amount"],
+                "status": normalized_status,
+                "created_at": payment_row["created_at"],
+            }
+        )
 
     for row in rows:
         leave_date = datetime.strptime(row["leave_date"], "%Y-%m-%d").date()
@@ -951,10 +1016,17 @@ def dashboard():
                 "days_left": days_left,
                 "is_expired": is_expired,
                 "is_soon": is_soon,
+                "pending_payment_reference": pending_payments_by_listing.get(row["id"], ""),
             }
         )
 
-    return render_template("dashboard.html", listings=listings, stats=stats)
+    return render_template(
+        "dashboard.html",
+        listings=listings,
+        stats=stats,
+        payment_history=payment_history[:20],
+        boost_amount=BOOST_LISTING_AMOUNT,
+    )
 
 
 @app.route("/add", methods=["POST"])
@@ -1018,7 +1090,7 @@ def add_listing():
     description = validated["description"]
     filename = str(uuid.uuid4()) + "_" + safe_name
     image.save(os.path.join(app.config["UPLOAD_FOLDER"], filename))
-    is_featured = 1 if "featured" in request.form else 0
+    is_featured = 0
 
     cursor.execute(
         "INSERT INTO listings (title, price, category, phone, owner_phone, leave_date, description, image, is_featured) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -1170,7 +1242,7 @@ def update_listing(id):
                 if os.path.exists(old_image_path):
                     os.remove(old_image_path)
 
-    is_featured = 1 if "featured" in request.form else (1 if current_listing.get("is_featured", 0) == 1 else 0)
+    is_featured = 1 if current_listing["is_featured"] == 1 else 0
 
     cursor.execute(
         "UPDATE listings SET title = ?, price = ?, category = ?, phone = ?, leave_date = ?, description = ?, image = ?, is_featured = ? WHERE id = ? AND owner_phone = ?",
@@ -1194,6 +1266,13 @@ def listing_detail(id):
     if item is None:
         conn.close()
         return "Listing not found", 404
+
+    can_manage = bool(user_phone and (item["owner_phone"] or "") == user_phone)
+    pending_payment_reference = ""
+    if can_manage:
+        pending_payment = get_pending_payment_for_listing(cursor, id)
+        if pending_payment:
+            pending_payment_reference = pending_payment["reference_id"]
 
     cursor.execute(
         """
@@ -1240,66 +1319,132 @@ def listing_detail(id):
         item=item,
         days_left=days_left,
         related_items=related_items,
-        can_manage=bool(user_phone and (item["owner_phone"] or "") == user_phone),
+        can_manage=can_manage,
+        pending_payment_reference=pending_payment_reference,
+        boost_amount=BOOST_LISTING_AMOUNT,
     )
 
-@app.route('/boost/<int:listing_id>', methods=['POST'])
-def boost_listing(listing_id):
+@app.route("/payments/boost/<int:listing_id>", methods=["POST"])
+@login_required
+def initiate_listing_boost(listing_id):
     conn = get_db()
     cursor = conn.cursor()
+    owner_phone = get_authenticated_owner_phone()
+    default_next = url_for("listing_detail", id=listing_id)
+    next_url = payment_next_url(default_next)
 
-    cursor.execute("""
-    INSERT INTO payments (listing_id, amount, provider, status)
-    VALUES (?, ?, ?, ?)
-    """, (listing_id, 500, "momo", "PENDING"))
+    if not owner_phone:
+        conn.close()
+        flash("You are not allowed to boost this listing.", "error")
+        return redirect(next_url)
+
+    listing = get_listing_for_owner(cursor, listing_id, owner_phone)
+    if listing is None:
+        conn.close()
+        flash("Listing not found or not allowed.", "error")
+        return redirect(next_url)
+
+    if listing["is_featured"] == 1:
+        conn.close()
+        flash("This listing is already featured.", "info")
+        return redirect(next_url)
+
+    existing_pending_payment = get_pending_payment_for_listing(cursor, listing_id)
+    if existing_pending_payment is not None:
+        conn.close()
+        flash("A payment is already pending for this listing. Confirm it to activate featured status.", "info")
+        return redirect(
+            url_for(
+                "verify_listing_payment",
+                reference_id=existing_pending_payment["reference_id"],
+                next=next_url,
+            )
+        )
+
+    payment_row = create_pending_payment_record(cursor, listing_id, BOOST_LISTING_AMOUNT)
+    conn.commit()
+
+    momo_result = momo.request_to_pay(
+        reference_id=payment_row["reference_id"],
+        phone=owner_phone,
+        amount=BOOST_LISTING_AMOUNT,
+        external_id=f"listing-{listing_id}-payment-{payment_row['id']}",
+    )
+
+    if not momo_result.get("ok"):
+        update_payment_status_record(cursor, payment_row["reference_id"], PAYMENT_STATUS_FAILED)
+        conn.commit()
+        conn.close()
+        flash(payment_provider_feedback(momo_result, "Payment request could not be sent."), "error")
+        return redirect(next_url)
+
+    conn.close()
+    flash("Payment request sent. Approve the prompt on your phone, then verify payment.", "success")
+    return redirect(
+        url_for(
+            "verify_listing_payment",
+            reference_id=payment_row["reference_id"],
+            next=next_url,
+        )
+    )
+
+
+@app.route("/payments/verify/<reference_id>")
+@login_required
+def verify_listing_payment(reference_id):
+    conn = get_db()
+    cursor = conn.cursor()
+    owner_phone = get_authenticated_owner_phone()
+
+    if not owner_phone:
+        conn.close()
+        flash("You are not allowed to verify this payment.", "error")
+        return redirect(url_for("dashboard"))
+
+    payment = get_payment_for_owner(cursor, reference_id, owner_phone)
+    if payment is None:
+        conn.close()
+        flash("Payment not found or not allowed.", "error")
+        return redirect(url_for("dashboard"))
+
+    listing_url = url_for("listing_detail", id=payment["listing_id"])
+    next_url = payment_next_url(listing_url)
+
+    current_status = resolve_internal_payment_status(payment["status"]) or PAYMENT_STATUS_PENDING
+    if current_status == PAYMENT_STATUS_SUCCESSFUL and payment["is_featured"] == 1:
+        conn.close()
+        flash("Payment already confirmed. Listing is featured.", "success")
+        return redirect(next_url)
+
+    status_result = momo.get_request_to_pay_status(reference_id)
+    provider_status = resolve_internal_payment_status(status_result.get("status"))
+
+    if not status_result.get("ok") and not provider_status:
+        conn.close()
+        flash(payment_provider_feedback(status_result, "Could not verify payment right now."), "error")
+        return redirect(next_url)
+
+    if not provider_status:
+        provider_status = current_status
+
+    update_payment_status_record(cursor, reference_id, provider_status)
+
+    if provider_status == PAYMENT_STATUS_SUCCESSFUL:
+        activate_listing_from_payment(cursor, payment["listing_id"])
+        conn.commit()
+        conn.close()
+        flash("Payment successful. Your listing is now featured.", "success")
+        return redirect(next_url)
 
     conn.commit()
     conn.close()
-    return redirect(f"/payment/{listing_id}")
 
-# test route for API
-# @app.route('/create-user')
-# def create_user():
+    if provider_status == PAYMENT_STATUS_PENDING:
+        flash("Payment is still pending. Complete the MoMo prompt and verify again.", "info")
+    else:
+        flash(payment_provider_feedback(status_result, "Payment failed or was cancelled."), "error")
+    return redirect(next_url)
 
-#     result = create_api_user()
 
-#     return result
-
-# temporary key route
-# @app.route('/create-key')
-# def create_key():
-
-#     api_user = "54f46d86-aa79-4d31-8bfb-22b33ba93639"
-
-#     result = create_api_key(api_user)
-
-#     return result
-
-# test token route using API user and key
-@app.route('/test-token')
-def test_token():
-
-    token = get_momo_token()
-
-    return token
-
-@app.route('/test-pay')
-def test_pay():
-
-    result = request_to_pay(
-        "237676210234",
-        500
-    )
-
-    return result
-
-@app.route('/check-payment')
-def check_payment():
-
-    reference_id = "152e5c15-3404-4fc0-9a12-461702656429"
-
-    result = get_payment_status(reference_id)
-
-    return result
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=env_flag("FLASK_DEBUG"))

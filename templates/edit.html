@@ -144,12 +144,6 @@
             box-shadow: 0 8px 18px rgba(208, 86, 45, 0.2);
         }
 
-        /* Styled checkbox to match add listing page */
-        .field.checkbox { display:flex; align-items:center; gap:10px; }
-        .field.checkbox label { display:inline-flex; align-items:center; gap:10px; cursor:pointer; font-weight:700; color:#2d333d; }
-        input[type="checkbox"].styled { width:18px; height:18px; margin:0; transform:scale(1.02); accent-color:#d0562d; background:var(--soft); border-radius:4px; border:1px solid var(--line); }
-        .checkbox-note { color:var(--muted); font-weight:600; font-size:0.95rem; }
-
         textarea {
             min-height: 150px;
             resize: vertical;
@@ -326,13 +320,6 @@
                 <div class="field">
                     <label for="image">Replace Image (optional)</label>
                     <input id="image" type="file" name="image" accept="image/*">
-                </div>
-
-                <div class="field checkbox">
-                    <label>
-                        <input type="checkbox" name="featured" value="1" {% if listing.is_featured == 1 or listing.is_featured %}checked{% endif %} class="styled">
-                        <span>Boost as featured listing (500 XAF)</span>
-                    </label>
                 </div>
 
                 <div class="actions">
