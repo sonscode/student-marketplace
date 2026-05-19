@@ -6,6 +6,8 @@ import hashlib
 import ipaddress
 from datetime import datetime
 from functools import wraps
+import requests
+import base64
 
 import sqlite3
 from flask import Flask, render_template, request, redirect, url_for, session
@@ -15,6 +17,137 @@ from werkzeug.utils import secure_filename
 from flask_dance.contrib.google import make_google_blueprint, google
 from dotenv import load_dotenv
 
+# Creating API user for MTN
+def create_api_user():
+
+    reference_id = str(uuid.uuid4())
+
+    headers = {
+        "X-Reference-Id": reference_id,
+        "Ocp-Apim-Subscription-Key":
+            os.getenv("MOMO_SUBSCRIPTION_KEY"),
+        "Content-Type": "application/json"
+    }
+
+    body = {
+        "providerCallbackHost": "example.com"
+    }
+
+    response = requests.post(
+        "https://sandbox.momodeveloper.mtn.com/v1_0/apiuser",
+        json=body,
+        headers=headers
+    )
+
+    return {
+        "reference_id": reference_id,
+        "status_code": response.status_code,
+        "response": response.text
+    }
+
+# Creating API key for MTN
+def create_api_key(api_user):
+    headers = {
+        "Ocp-Apim-Subscription-Key":
+            os.getenv("MOMO_SUBSCRIPTION_KEY")
+    }
+
+    response = requests.post(
+        f"https://sandbox.momodeveloper.mtn.com/v1_0/apiuser/{api_user}/apikey",
+        headers=headers
+    )
+
+    return response.json()
+
+def get_momo_token():
+
+    api_user = os.getenv("MOMO_API_USER")
+    api_key = os.getenv("MOMO_API_KEY")
+
+    auth_string = f"{api_user}:{api_key}"
+
+    encoded_auth = base64.b64encode(
+        auth_string.encode()
+    ).decode()
+
+    headers = {
+        "Authorization": f"Basic {encoded_auth}",
+        "Ocp-Apim-Subscription-Key":
+            os.getenv("MOMO_SUBSCRIPTION_KEY")
+    }
+
+    response = requests.post(
+        "https://sandbox.momodeveloper.mtn.com/collection/token/",
+        headers=headers
+    )
+
+    return response.json()
+
+# Creating payment request fxn
+def request_to_pay(phone, amount):
+
+    token_data = get_momo_token()
+
+    access_token = token_data.get("access_token")
+
+    reference_id = str(uuid.uuid4())
+
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "X-Reference-Id": reference_id,
+        "X-Target-Environment": "sandbox",
+        "Ocp-Apim-Subscription-Key":
+            os.getenv("MOMO_SUBSCRIPTION_KEY"),
+        "Content-Type": "application/json"
+    }
+
+    body = {
+        "amount": str(amount),
+        "currency": "EUR",
+        "externalId": "12345",
+        "payer": {
+            "partyIdType": "MSISDN",
+            "partyId": phone
+        },
+        "payerMessage": "Boost Listing",
+        "payeeNote": "Azison Marketplace"
+    }
+
+    response = requests.post(
+        "https://sandbox.momodeveloper.mtn.com/collection/v1_0/requesttopay",
+        json=body,
+        headers=headers
+    )
+
+    return {
+        "status_code": response.status_code,
+        "response": response.text,
+        "reference_id": reference_id,
+        
+    }
+
+# Creating payment status fxn
+def get_payment_status(reference_id):
+
+    token_data = get_momo_token()
+
+    access_token = token_data.get("access_token")
+
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "X-Target-Environment": "sandbox",
+        "Ocp-Apim-Subscription-Key":
+            os.getenv("MOMO_SUBSCRIPTION_KEY")
+    }
+
+    response = requests.get(
+        f"https://sandbox.momodeveloper.mtn.com/collection/v1_0/requesttopay/{reference_id}",
+        headers=headers
+    )
+
+    return response.json()
+
+# Exceptions for image file
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
 
 def allowed_file(filename):
@@ -967,7 +1100,7 @@ def update_listing(id):
         return "Not allowed", 403
 
     cursor.execute(
-        "SELECT image, category, leave_date, title, price, phone, description FROM listings WHERE id = ? AND owner_phone = ?",
+        "SELECT image, category, leave_date, title, price, phone, description, is_featured FROM listings WHERE id = ? AND owner_phone = ?",
         (id, owner_phone),
     )
     current_listing = cursor.fetchone()
@@ -985,6 +1118,7 @@ def update_listing(id):
         "phone": (request.form.get("phone") or current_listing["phone"] or "").strip(),
         "leave_date": (request.form.get("leave_date") or current_listing["leave_date"] or "").strip(),
         "description": request.form.get("description", current_listing["description"] or ""),
+        "is_featured": bool(current_listing["is_featured"] == 1),
     }
 
     def render_edit_errors(errors):
@@ -1036,9 +1170,11 @@ def update_listing(id):
                 if os.path.exists(old_image_path):
                     os.remove(old_image_path)
 
+    is_featured = 1 if "featured" in request.form else (1 if current_listing.get("is_featured", 0) == 1 else 0)
+
     cursor.execute(
-        "UPDATE listings SET title = ?, price = ?, category = ?, phone = ?, leave_date = ?, description = ?, image = ? WHERE id = ? AND owner_phone = ?",
-        (title, price, category, phone, leave_date, description, image_filename, id, owner_phone),
+        "UPDATE listings SET title = ?, price = ?, category = ?, phone = ?, leave_date = ?, description = ?, image = ?, is_featured = ? WHERE id = ? AND owner_phone = ?",
+        (title, price, category, phone, leave_date, description, image_filename, is_featured, id, owner_phone),
     )
     conn.commit()
     conn.close()
@@ -1107,6 +1243,63 @@ def listing_detail(id):
         can_manage=bool(user_phone and (item["owner_phone"] or "") == user_phone),
     )
 
+@app.route('/boost/<int:listing_id>', methods=['POST'])
+def boost_listing(listing_id):
+    conn = get_db()
+    cursor = conn.cursor()
 
+    cursor.execute("""
+    INSERT INTO payments (listing_id, amount, provider, status)
+    VALUES (?, ?, ?, ?)
+    """, (listing_id, 500, "momo", "PENDING"))
+
+    conn.commit()
+    conn.close()
+    return redirect(f"/payment/{listing_id}")
+
+# test route for API
+# @app.route('/create-user')
+# def create_user():
+
+#     result = create_api_user()
+
+#     return result
+
+# temporary key route
+# @app.route('/create-key')
+# def create_key():
+
+#     api_user = "54f46d86-aa79-4d31-8bfb-22b33ba93639"
+
+#     result = create_api_key(api_user)
+
+#     return result
+
+# test token route using API user and key
+@app.route('/test-token')
+def test_token():
+
+    token = get_momo_token()
+
+    return token
+
+@app.route('/test-pay')
+def test_pay():
+
+    result = request_to_pay(
+        "237676210234",
+        500
+    )
+
+    return result
+
+@app.route('/check-payment')
+def check_payment():
+
+    reference_id = "152e5c15-3404-4fc0-9a12-461702656429"
+
+    result = get_payment_status(reference_id)
+
+    return result
 if __name__ == "__main__":
     app.run(debug=True)
