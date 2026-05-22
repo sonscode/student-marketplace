@@ -14,7 +14,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 from flask_dance.contrib.google import make_google_blueprint, google
 from dotenv import load_dotenv
-from services import campay
+import services.campay as campay
 
 # Exceptions for image file
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
@@ -181,7 +181,7 @@ def env_int(name, default):
 PRICE_MIN = 500
 PRICE_MAX = 50000000
 DESCRIPTION_MAX_WORDS = 50
-BOOST_LISTING_AMOUNT = env_int("BOOST_LISTING_AMOUNT", 1)
+BOOST_LISTING_AMOUNT = env_int("BOOST_LISTING_AMOUNT", 500)
 
 PAYMENT_STATUS_PENDING = "PENDING"
 PAYMENT_STATUS_SUCCESSFUL = "SUCCESSFUL"
@@ -1438,12 +1438,15 @@ def initiate_listing_boost(listing_id):
 
     external_reference = f"listing-{listing_id}-payment-{payment_row['id']}"
     campay_result = campay.request_collect(
+        
         phone=owner_phone,
         amount=BOOST_LISTING_AMOUNT,
         external_reference=external_reference,
         external_user=str(get_session_user_id() or ""),
         description="Boost Listing",
     )
+    print("RETURNED FROM request_collect")
+    print(campay_result)
 
     provider_reference = (campay_result.get("reference") or "").strip()
     if provider_reference:
@@ -1599,3 +1602,7 @@ def campay_webhook():
 
 if __name__ == "__main__":
     app.run(debug=env_flag("FLASK_DEBUG"))
+
+# boost_amount
+# reference_id
+# 

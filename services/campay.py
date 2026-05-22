@@ -1,5 +1,6 @@
 import os
 from typing import Any
+from urllib import response
 
 import requests
 
@@ -18,7 +19,16 @@ def _env(name: str, default: str = "") -> str:
 
 
 def _base_url() -> str:
-    return _env("CAMPAY_BASE_URL", "https://demo.campay.net").rstrip("/")
+    # `CAMPAY_BASE_URL` is expected to be the host root (e.g. https://campay.net or https://campay.net).
+    # Normalize common misconfigurations like including a trailing `/api`.
+    raw = _env("CAMPAY_BASE_URL", "https://campay.net").rstrip("/")
+    if raw.endswith("/api"):
+        raw = raw[: -len("/api")]
+    return raw.rstrip("/")
+
+def _api_url(path: str) -> str:
+    normalized_path = (path or "").lstrip("/")
+    return f"{_base_url()}/{normalized_path}"
 
 
 def _timeout_seconds() -> int:
@@ -70,7 +80,7 @@ def get_access_token() -> dict[str, Any]:
 
     try:
         response = requests.post(
-            f"{_base_url()}/api/token/",
+            _api_url("/api/token/"),
             json=payload,
             headers=headers,
             timeout=_timeout_seconds(),
@@ -126,6 +136,7 @@ def request_collect(
     description: str = "Boost Listing",
     external_user: str = "",
 ) -> dict[str, Any]:
+    print("🔥 ENTERED request_collect")
     if not _required_credentials_present():
         return {
             "ok": False,
@@ -137,7 +148,9 @@ def request_collect(
         }
 
     token_result = get_access_token()
+    print("STEP 3 AFTER CREDENTIAL CHECK")
     if not token_result.get("ok"):
+        print("EXIT: missing credentials")
         return {
             "ok": False,
             "status_code": token_result.get("status_code", 0),
@@ -146,6 +159,7 @@ def request_collect(
             "error": token_result.get("error", "CamPay authentication failed."),
             "data": token_result.get("data", {}),
         }
+    print("STEP 2 AFTER CREDENTIAL CHECK")
 
     payload = {
         "amount": str(amount),
@@ -158,18 +172,23 @@ def request_collect(
 
     try:
         response = requests.post(
-            f"{_base_url()}/api/collect/",
+            _api_url("/api/collect/"),
             json=payload,
             headers=_auth_headers(token_result["token"]),
             timeout=_timeout_seconds(),
         )
+        print("STATUS:", response.status_code)
+        print("BODY:", response.text)
+
+
     except requests.RequestException as exc:
+        print("Real Error: ", exc)
         return {
             "ok": False,
             "status_code": 0,
             "reference": "",
             "status": "",
-            "error": f"Unable to submit CamPay payment request: {exc}",
+            "error": f"Unable to submit CamPay payment request (network/DNS error): {exc}",
             "data": {},
         }
 
@@ -191,6 +210,7 @@ def request_collect(
     }
 
 
+
 def get_transaction_status(reference: str) -> dict[str, Any]:
     token_result = get_access_token()
     if not token_result.get("ok"):
@@ -205,17 +225,20 @@ def get_transaction_status(reference: str) -> dict[str, Any]:
 
     try:
         response = requests.get(
-            f"{_base_url()}/api/transaction/{reference}/",
+            _api_url(f"/api/transaction/{reference}/"),
             headers=_auth_headers(token_result["token"]),
             timeout=_timeout_seconds(),
         )
+
+    
+
     except requests.RequestException as exc:
         return {
             "ok": False,
             "status_code": 0,
             "reference": reference,
             "status": "",
-            "error": f"Unable to fetch CamPay transaction status: {exc}",
+            "error": f"Unable to fetch CamPay transaction status (network/DNS error): {exc}",
             "data": {},
         }
 
@@ -234,6 +257,7 @@ def get_transaction_status(reference: str) -> dict[str, Any]:
         "error": "" if response.ok else "CamPay status request failed.",
         "data": data,
     }
+    
 
 
 def verify_webhook_signature(payload: dict[str, Any], webhook_key: str) -> dict[str, Any]:
