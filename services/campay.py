@@ -1,8 +1,10 @@
+import logging
 import os
 from typing import Any
-from urllib import response
 
 import requests
+
+logger = logging.getLogger(__name__)
 
 try:
     import jwt
@@ -116,16 +118,12 @@ def get_access_token() -> dict[str, Any]:
 
 
 def _auth_headers(token: str) -> dict[str, str]:
-    headers = {
+    # Use the same minimal headers as the working `test_campay.py` script.
+    # Some environments are sensitive to mismatched App IDs, so we omit X-App-ID.
+    return {
         "Authorization": f"Token {token}",
         "Content-Type": "application/json",
     }
-
-    app_id = _env("CAMPAY_APP_ID")
-    if app_id:
-        headers["X-App-ID"] = app_id
-
-    return headers
 
 
 def request_collect(
@@ -136,7 +134,7 @@ def request_collect(
     description: str = "Boost Listing",
     external_user: str = "",
 ) -> dict[str, Any]:
-    print("🔥 ENTERED request_collect")
+    # print("🔥 ENTERED request_collect")
     if not _required_credentials_present():
         return {
             "ok": False,
@@ -148,9 +146,7 @@ def request_collect(
         }
 
     token_result = get_access_token()
-    print("STEP 3 AFTER CREDENTIAL CHECK")
     if not token_result.get("ok"):
-        print("EXIT: missing credentials")
         return {
             "ok": False,
             "status_code": token_result.get("status_code", 0),
@@ -158,8 +154,8 @@ def request_collect(
             "status": "",
             "error": token_result.get("error", "CamPay authentication failed."),
             "data": token_result.get("data", {}),
+            "network_error": False,
         }
-    print("STEP 2 AFTER CREDENTIAL CHECK")
 
     payload = {
         "amount": str(amount),
@@ -169,6 +165,12 @@ def request_collect(
         "external_reference": str(external_reference),
         "external_user": str(external_user),
     }
+    logger.info(
+        "campay_collect_request external_reference=%s amount=%s phone=***%s",
+        external_reference,
+        amount,
+        str(phone)[-4:] if phone else "",
+    )
 
     try:
         response = requests.post(
@@ -177,12 +179,8 @@ def request_collect(
             headers=_auth_headers(token_result["token"]),
             timeout=_timeout_seconds(),
         )
-        print("STATUS:", response.status_code)
-        print("BODY:", response.text)
-
-
     except requests.RequestException as exc:
-        print("Real Error: ", exc)
+        logger.warning("campay_collect_network_error external_reference=%s error=%s", external_reference, exc)
         return {
             "ok": False,
             "status_code": 0,
@@ -190,6 +188,7 @@ def request_collect(
             "status": "",
             "error": f"Unable to submit CamPay payment request (network/DNS error): {exc}",
             "data": {},
+            "network_error": True,
         }
 
     data = _safe_json(response)
@@ -200,13 +199,32 @@ def request_collect(
         status = str(data.get("status") or status).upper().strip()
 
     ok = response.status_code == 200 and bool(reference)
+    error = ""
+    if not ok:
+        if isinstance(data, dict):
+            error = str(
+                data.get("message") or data.get("reason") or data.get("detail") or "CamPay request payment failed."
+            ).strip()
+        else:
+            error = "CamPay request payment failed."
+
+    logger.info(
+        "campay_collect_response external_reference=%s status_code=%s ok=%s provider_ref=%s provider_status=%s",
+        external_reference,
+        response.status_code,
+        ok,
+        reference,
+        status,
+    )
+
     return {
         "ok": ok,
         "status_code": response.status_code,
         "reference": reference,
         "status": status,
-        "error": "" if ok else "CamPay request payment failed.",
+        "error": error,
         "data": data,
+        "network_error": False,
     }
 
 
@@ -221,7 +239,10 @@ def get_transaction_status(reference: str) -> dict[str, Any]:
             "status": "",
             "error": token_result.get("error", "CamPay authentication failed."),
             "data": token_result.get("data", {}),
+            "network_error": False,
         }
+
+    logger.info("campay_status_request provider_ref=%s", reference)
 
     try:
         response = requests.get(
@@ -229,10 +250,8 @@ def get_transaction_status(reference: str) -> dict[str, Any]:
             headers=_auth_headers(token_result["token"]),
             timeout=_timeout_seconds(),
         )
-
-    
-
     except requests.RequestException as exc:
+        logger.warning("campay_status_network_error provider_ref=%s error=%s", reference, exc)
         return {
             "ok": False,
             "status_code": 0,
@@ -240,6 +259,7 @@ def get_transaction_status(reference: str) -> dict[str, Any]:
             "status": "",
             "error": f"Unable to fetch CamPay transaction status (network/DNS error): {exc}",
             "data": {},
+            "network_error": True,
         }
 
     data = _safe_json(response)
@@ -249,13 +269,32 @@ def get_transaction_status(reference: str) -> dict[str, Any]:
         status = str(data.get("status") or "").upper().strip()
         resolved_reference = str(data.get("reference") or reference)
 
+    error = ""
+    if not response.ok:
+        if isinstance(data, dict):
+            error = str(
+                data.get("message") or data.get("reason") or data.get("detail") or "CamPay status request failed."
+            ).strip()
+        else:
+            error = "CamPay status request failed."
+
+    has_status = bool(status)
+    logger.info(
+        "campay_status_response provider_ref=%s status_code=%s provider_status=%s has_status=%s",
+        reference,
+        response.status_code,
+        status,
+        has_status,
+    )
+
     return {
-        "ok": response.ok,
+        "ok": response.ok or has_status,
         "status_code": response.status_code,
         "reference": resolved_reference,
         "status": status,
-        "error": "" if response.ok else "CamPay status request failed.",
+        "error": error,
         "data": data,
+        "network_error": False,
     }
     
 
