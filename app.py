@@ -413,6 +413,48 @@ def login_required(view_func):
     return wrapped
 
 
+def development_route_access_reason():
+    if app.debug:
+        return "app.debug is True"
+
+    if env_flag("FLASK_DEBUG"):
+        return "FLASK_DEBUG is enabled"
+
+    remote_addr = (request.remote_addr or "").strip()
+    try:
+        if remote_addr and ipaddress.ip_address(remote_addr).is_loopback:
+            return f"request is from localhost ({remote_addr})"
+    except ValueError:
+        pass
+
+    return ""
+
+
+def development_only(view_func):
+    @wraps(view_func)
+    def wrapped(*args, **kwargs):
+        access_reason = development_route_access_reason()
+        if not access_reason:
+            app.logger.debug(
+                "dev_payment_route denied path=%s reason=%s remote_addr=%s app_debug=%s flask_debug=%s",
+                request.path,
+                "no local/debug development signal matched",
+                request.remote_addr,
+                app.debug,
+                os.getenv("FLASK_DEBUG", ""),
+            )
+            return "Not found", 404
+        app.logger.debug(
+            "dev_payment_route granted path=%s reason=%s remote_addr=%s",
+            request.path,
+            access_reason,
+            request.remote_addr,
+        )
+        return view_func(*args, **kwargs)
+
+    return wrapped
+
+
 def resolve_internal_payment_status(provider_status):
     normalized = normalize_payment_status(provider_status)
     if not normalized:
@@ -1852,6 +1894,59 @@ def verify_listing_payment(reference_id):
     return redirect(next_url)
 
 
+def mock_payment_redirect_url(payment):
+    default_next = url_for("listing_detail", id=payment["listing_id"]) if payment else url_for("dashboard")
+    return payment_next_url(default_next)
+
+
+@app.route("/dev/mock-payment-success/<reference_id>")
+@development_only
+def mock_payment_success(reference_id):
+    conn = get_db()
+    cursor = conn.cursor()
+    payment = get_payment_by_reference(cursor, reference_id)
+
+    if payment is None:
+        conn.close()
+        flash("Payment not found.", "error")
+        return redirect(url_for("dashboard"))
+
+    next_url = mock_payment_redirect_url(payment)
+    apply_successful_payment(cursor, payment)
+    conn.commit()
+    conn.close()
+
+    flash("Mock payment marked successful. Listing is now featured.", "success")
+    return redirect(next_url)
+
+
+@app.route("/dev/mock-payment-failure/<reference_id>")
+@development_only
+def mock_payment_failure(reference_id):
+    conn = get_db()
+    cursor = conn.cursor()
+    payment = get_payment_by_reference(cursor, reference_id)
+
+    if payment is None:
+        conn.close()
+        flash("Payment not found.", "error")
+        return redirect(url_for("dashboard"))
+
+    next_url = mock_payment_redirect_url(payment)
+    update_payment_status_by_id(cursor, payment["id"], PAYMENT_STATUS_FAILED)
+    log_payment_event(
+        "dev_mock_failure",
+        payment_id=payment["id"],
+        listing_id=payment["listing_id"],
+        local_ref=get_payment_local_reference(payment),
+    )
+    conn.commit()
+    conn.close()
+
+    flash("Mock payment marked failed. Listing was not activated.", "error")
+    return redirect(next_url)
+
+
 @app.route("/payments/campay/webhook", methods=["GET", "POST"])
 def campay_webhook():
     payload = request.get_json(silent=True) if request.method == "POST" else None
@@ -1926,4 +2021,4 @@ if __name__ == "__main__":
 
 # boost_amount
 # reference_id
-# 
+#
