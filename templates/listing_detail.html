@@ -93,11 +93,6 @@
             color: var(--featured);
         }
 
-        .badge.urgent {
-            background: #fff0ec;
-            color: var(--urgent);
-        }
-
         .hero {
             width: 100%;
             border-radius: 14px;
@@ -300,11 +295,6 @@
             color: var(--featured);
         }
 
-        .mini-badge.urgent {
-            background: #fff0ec;
-            color: var(--urgent);
-        }
-
         .related-link {
             display: inline-flex;
             width: fit-content;
@@ -445,6 +435,7 @@
             }
         }
     </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/marketplace.css') }}">
 </head>
 <body>
     <main class="page">
@@ -475,9 +466,6 @@
                 {% if item['is_featured'] == 1 %}
                     <span class="badge featured">🔥 Featured</span>
                 {% endif %}
-                {% if 0 <= days_left <= 3 %}
-                    <span class="badge urgent">⚡ Leaving Soon</span>
-                {% endif %}
             </div>
 
             {% if item['image'] %}
@@ -504,8 +492,10 @@
                     <span class="label">Days Left</span>
                     {% if days_left < 0 %}
                         <strong>Expired {{ (days_left * -1) }} day(s) ago</strong>
+                    {% elif days_left <= 3 %}
+                        <strong class="deadline soon">⚡ {{ days_left }} day(s)</strong>
                     {% else %}
-                        <strong>{{ days_left }} day(s)</strong>
+                        <strong class="deadline">{{ days_left }} day(s)</strong>
                     {% endif %}
                 </div>
             </section>
@@ -564,15 +554,16 @@
                                     <span>•</span>
                                     <span>{{ related['category'] }}</span>
                                     <span>•</span>
-                                    <span>{{ related['days_left'] }} day(s) left</span>
+                                    {% if related['days_left'] <= 3 %}
+                                        <span class="deadline soon">⚡ {{ related['days_left'] }} day(s) left</span>
+                                    {% else %}
+                                        <span class="deadline">{{ related['days_left'] }} day(s) left</span>
+                                    {% endif %}
                                 </p>
 
                                 <div class="related-badges">
                                     {% if related['is_featured'] == 1 %}
                                         <span class="mini-badge featured">🔥 Featured</span>
-                                    {% endif %}
-                                    {% if 0 <= related['days_left'] <= 3 %}
-                                        <span class="mini-badge urgent">⚡ Soon</span>
                                     {% endif %}
                                 </div>
 
@@ -593,43 +584,6 @@
             <img id="lightbox-image" class="lightbox-image" src="" alt="">
         </div>
     </div>
-    <script>
-        document.addEventListener("DOMContentLoaded", function () {
-            var lightbox = document.getElementById("image-lightbox");
-            var lightboxImage = document.getElementById("lightbox-image");
-            var closeButton = document.getElementById("lightbox-close");
-
-            var closeLightbox = function () {
-                lightbox.classList.remove("open");
-                lightbox.setAttribute("aria-hidden", "true");
-                lightboxImage.removeAttribute("src");
-                lightboxImage.removeAttribute("alt");
-            };
-
-            document.querySelectorAll("a.lightbox-trigger[href]").forEach(function (link) {
-                link.addEventListener("click", function (event) {
-                    event.preventDefault();
-                    var imageElement = link.querySelector("img");
-                    lightboxImage.src = link.href;
-                    lightboxImage.alt = imageElement ? imageElement.alt : "Listing image";
-                    lightbox.classList.add("open");
-                    lightbox.setAttribute("aria-hidden", "false");
-                });
-            });
-
-            closeButton.addEventListener("click", closeLightbox);
-            lightbox.addEventListener("click", function (event) {
-                if (event.target === lightbox) {
-                    closeLightbox();
-                }
-            });
-
-            document.addEventListener("keydown", function (event) {
-                if (event.key === "Escape" && lightbox.classList.contains("open")) {
-                    closeLightbox();
-                }
-            });
-        });
-    </script>
+    <script src="{{ url_for('static', filename='js/lightbox.js') }}"></script>
 </body>
 </html>
