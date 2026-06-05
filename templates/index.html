@@ -253,11 +253,6 @@
             color: var(--featured);
         }
 
-        .badge.urgent {
-            background: #fff0ec;
-            color: var(--urgent);
-        }
-
         .thumb {
             width: 92px;
             height: 92px;
@@ -450,6 +445,7 @@
             }
         }
     </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/marketplace.css') }}">
 </head>
 <body>
     <main class="page">
@@ -517,7 +513,20 @@
 
         <section class="list">
             {% if listings %}
+                {% set sections = namespace(featured_shown=false, normal_shown=false) %}
                 {% for item in listings %}
+                    {% if item['is_featured'] == 1 and not sections.featured_shown %}
+                        <div class="listing-section-heading">
+                            <h2>⭐ Featured Listings</h2>
+                        </div>
+                        {% set sections.featured_shown = true %}
+                    {% elif item['is_featured'] != 1 and not sections.normal_shown %}
+                        <div class="listing-section-heading">
+                            <h2>All Listings</h2>
+                        </div>
+                        {% set sections.normal_shown = true %}
+                    {% endif %}
+
                     {% set detail_url = url_for('listing_detail', id=item['id'], category=request.args.get('category'), search=request.args.get('search')) %}
                     <article class="card clickable" data-href="{{ detail_url }}" tabindex="0" role="link" aria-label="Open listing: {{ item['title'] }}">
                         <div class="card-body">
@@ -532,7 +541,11 @@
                                 <span>•</span>
                                 <span>{{ item['category'] | highlight(search) }}</span>
                                 <span>•</span>
-                                <span>Leaving in {{ item['days_left'] }} day(s)</span>
+                                {% if 0 <= item['days_left'] <= 3 %}
+                                    <span class="deadline soon">⚡ Leaving in {{ item['days_left'] }} day(s)</span>
+                                {% else %}
+                                    <span class="deadline">Leaving in {{ item['days_left'] }} day(s)</span>
+                                {% endif %}
                             </p>
 
                             {% if item['description']|length > 120 %}
@@ -544,9 +557,6 @@
                             <div class="badges">
                                 {% if item['is_featured'] == 1 %}
                                     <span class="badge featured">🔥 Featured</span>
-                                {% endif %}
-                                {% if 0 <= item['days_left'] <= 3 %}
-                                    <span class="badge urgent">⚡ Leaving Soon</span>
                                 {% endif %}
                             </div>
 
@@ -603,42 +613,8 @@
                     }
                 });
             });
-
-            var lightbox = document.getElementById("image-lightbox");
-            var lightboxImage = document.getElementById("lightbox-image");
-            var closeButton = document.getElementById("lightbox-close");
-
-            var closeLightbox = function () {
-                lightbox.classList.remove("open");
-                lightbox.setAttribute("aria-hidden", "true");
-                lightboxImage.removeAttribute("src");
-                lightboxImage.removeAttribute("alt");
-            };
-
-            document.querySelectorAll("a.lightbox-trigger[href]").forEach(function (link) {
-                link.addEventListener("click", function (event) {
-                    event.preventDefault();
-                    var imageElement = link.querySelector("img");
-                    lightboxImage.src = link.href;
-                    lightboxImage.alt = imageElement ? imageElement.alt : "Listing image";
-                    lightbox.classList.add("open");
-                    lightbox.setAttribute("aria-hidden", "false");
-                });
-            });
-
-            closeButton.addEventListener("click", closeLightbox);
-            lightbox.addEventListener("click", function (event) {
-                if (event.target === lightbox) {
-                    closeLightbox();
-                }
-            });
-
-            document.addEventListener("keydown", function (event) {
-                if (event.key === "Escape" && lightbox.classList.contains("open")) {
-                    closeLightbox();
-                }
-            });
         });
     </script>
+    <script src="{{ url_for('static', filename='js/lightbox.js') }}"></script>
 </body>
 </html>

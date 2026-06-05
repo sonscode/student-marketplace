@@ -177,11 +177,6 @@
             color: #811e15;
         }
 
-        .chip.soon {
-            background: #fff7dc;
-            color: var(--warn);
-        }
-
         .chip.expired {
             background: #e2e2e2;
             color: rgb(71, 71, 71);
@@ -370,6 +365,7 @@
             }
         }
     </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/marketplace.css') }}">
 </head>
 <body>
     <main class="page">
@@ -404,7 +400,7 @@
                 <strong class="value">{{ stats['active'] }}</strong>
             </article>
             <article class="stat">
-                <span class="label">Leaving Soon</span>
+                <span class="label">Due Soon</span>
                 <strong class="value">{{ stats['soon'] }}</strong>
             </article>
             <article class="stat">
@@ -432,8 +428,10 @@
                                 <span>•</span>
                                 {% if item['is_expired'] %}
                                     <span>Expired {{ item['days_left'] * -1 }} day(s) ago</span>
+                                {% elif item['is_soon'] %}
+                                    <span class="deadline soon">⚡ {{ item['days_left'] }} day(s) left</span>
                                 {% else %}
-                                    <span>{{ item['days_left'] }} day(s) left</span>
+                                    <span class="deadline">{{ item['days_left'] }} day(s) left</span>
                                 {% endif %}
                             </p>
 
@@ -446,9 +444,6 @@
                             <div class="chips">
                                 {% if item['is_featured'] == 1 %}
                                     <span class="chip featured">Featured</span>
-                                {% endif %}
-                                {% if item['is_soon'] %}
-                                    <span class="chip soon">Leaving Soon</span>
                                 {% endif %}
                                 {% if item['is_expired'] %}
                                     <span class="chip expired">Expired</span>
@@ -514,43 +509,6 @@
             <img id="lightbox-image" class="lightbox-image" src="" alt="">
         </div>
     </div>
-    <script>
-        document.addEventListener("DOMContentLoaded", function () {
-            var lightbox = document.getElementById("image-lightbox");
-            var lightboxImage = document.getElementById("lightbox-image");
-            var closeButton = document.getElementById("lightbox-close");
-
-            var closeLightbox = function () {
-                lightbox.classList.remove("open");
-                lightbox.setAttribute("aria-hidden", "true");
-                lightboxImage.removeAttribute("src");
-                lightboxImage.removeAttribute("alt");
-            };
-
-            document.querySelectorAll("a.lightbox-trigger[href]").forEach(function (link) {
-                link.addEventListener("click", function (event) {
-                    event.preventDefault();
-                    var imageElement = link.querySelector("img");
-                    lightboxImage.src = link.href;
-                    lightboxImage.alt = imageElement ? imageElement.alt : "Listing image";
-                    lightbox.classList.add("open");
-                    lightbox.setAttribute("aria-hidden", "false");
-                });
-            });
-
-            closeButton.addEventListener("click", closeLightbox);
-            lightbox.addEventListener("click", function (event) {
-                if (event.target === lightbox) {
-                    closeLightbox();
-                }
-            });
-
-            document.addEventListener("keydown", function (event) {
-                if (event.key === "Escape" && lightbox.classList.contains("open")) {
-                    closeLightbox();
-                }
-            });
-        });
-    </script>
+    <script src="{{ url_for('static', filename='js/lightbox.js') }}"></script>
 </body>
 </html>
