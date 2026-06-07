@@ -810,7 +810,8 @@ def init_db():
             leave_date TEXT,
             description TEXT,
             image TEXT,
-            is_featured INTEGER DEFAULT 0
+            is_featured INTEGER DEFAULT 0,
+            view_count INTEGER DEFAULT 0
         )
         """
     )
@@ -819,8 +820,11 @@ def init_db():
     columns = [row[1] for row in cursor.fetchall()]
     if "owner_phone" not in columns:
         cursor.execute("ALTER TABLE listings ADD COLUMN owner_phone TEXT")
+    if "view_count" not in columns:
+        cursor.execute("ALTER TABLE listings ADD COLUMN view_count INTEGER DEFAULT 0")
 
     cursor.execute("UPDATE listings SET owner_phone = phone WHERE owner_phone IS NULL OR owner_phone = ''")
+    cursor.execute("UPDATE listings SET view_count = 0 WHERE view_count IS NULL")
 
     cursor.execute(
         """
@@ -1355,6 +1359,7 @@ def dashboard():
                 "is_expired": is_expired,
                 "is_soon": is_soon,
                 "pending_payment_reference": pending_payments_by_listing.get(row["id"], ""),
+                "view_count": row["view_count"],
             }
         )
 
@@ -1604,6 +1609,20 @@ def listing_detail(id):
     if item is None:
         conn.close()
         return "Listing not found", 404
+
+    # Track views with session-based deduplication
+    # Ensure viewed_listings is a set for efficient lookup and storage
+    viewed_listings = session.get("viewed_listings", set())
+    if isinstance(viewed_listings, list):
+        viewed_listings = set(viewed_listings)
+    if id not in viewed_listings:
+        cursor.execute("UPDATE listings SET view_count = view_count + 1 WHERE id = ?", (id,))
+        conn.commit()
+        viewed_listings.add(id)
+        session["viewed_listings"] = list(viewed_listings) # Store as list in session for JSON serialization
+        # Refresh item to get updated view_count
+        cursor.execute("SELECT * FROM listings WHERE id = ?", (id,))
+        item = cursor.fetchone()
 
     can_manage = bool(user_phone and (item["owner_phone"] or "") == user_phone)
     pending_payment_reference = ""

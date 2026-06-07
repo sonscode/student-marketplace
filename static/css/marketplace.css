@@ -1,19 +1,30 @@
 :root {
-    --bg: #e7f0ff;
+    --bg: #dfe9ff;
     --card: #ffffff;
+    --surface: #eaf0ff;
+    --surface-alt: #eef4ff;
     --text: #0f172a;
     --muted: #64748b;
-    --line: #d8e2ee;
+    --line: #d0dfee;
+    --line-soft: #dceaf5;
     --brand: #2563eb;
+    --brand-light: #3b82f6;
     --accent: #dbeafe;
     --urgent: #b45309;
     --featured: #1d4ed8;
-    --chip: #eef4ff;
-    --soft: #f8fafc;
-    --auth-bg: #eff6ff;
+    --chip: #eaf0ff;
+    --soft: #f4f8ff;
+    --auth-bg: #eaf0ff;
     --ok: #15803d;
     --warn: #b45309;
     --danger: #b91c1c;
+    --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06);
+    --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.06);
+    --shadow-lg: 0 12px 30px rgba(15, 23, 42, 0.06);
+    --shadow-xl: 0 20px 40px rgba(15, 23, 42, 0.08);
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
 }
 
 html {
@@ -23,9 +34,9 @@ html {
 body {
     line-height: 1.5;
     background:
-        repeating-linear-gradient(135deg, rgba(37, 99, 235, 0.08) 0 1px, transparent 1px 34px),
-        linear-gradient(120deg, rgba(37, 99, 235, 0.28) 0%, rgba(14, 165, 233, 0.16) 28%, transparent 56%),
-        linear-gradient(235deg, rgba(30, 64, 175, 0.18) 0%, rgba(191, 219, 254, 0.2) 34%, transparent 62%),
+        repeating-linear-gradient(135deg, rgba(37, 99, 235, 0.06) 0 1px, transparent 1px 34px),
+        linear-gradient(120deg, rgba(37, 99, 235, 0.22) 0%, rgba(14, 165, 233, 0.12) 28%, transparent 56%),
+        linear-gradient(235deg, rgba(30, 64, 175, 0.14) 0%, rgba(191, 219, 254, 0.16) 34%, transparent 62%),
         linear-gradient(180deg, #cfe4ff 0%, #e4f0ff 42%, var(--bg) 100%);
     background-attachment: fixed;
 }
@@ -52,16 +63,33 @@ h3,
     margin-top: 28px;
 }
 
+/* ── Brand Typography ── */
+.brand {
+    font-family: "Sora", "Manrope", sans-serif;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+}
+
+.site-title {
+    font-family: "Poppins", "Manrope", sans-serif;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: var(--muted);
+}
+
+/* ── Cards & Containers ── */
 .card,
 .stat,
 .history {
-    border-color: var(--line);
-    border-radius: 8px;
-    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    box-shadow: var(--shadow-lg);
 }
 
 .card {
-    padding: 18px;
+    padding: 20px;
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
 
 .card.clickable,
@@ -85,6 +113,7 @@ input[type="file"]::file-selector-button {
     transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease, background-color 0.14s ease;
 }
 
+/* ── Buttons & Controls ── */
 .btn,
 .back,
 .nav,
@@ -99,7 +128,7 @@ input[type="file"]::file-selector-button {
 .search button,
 .search .clear-btn {
     min-height: 40px;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     font-weight: 800;
 }
 
@@ -115,9 +144,10 @@ input[type="file"]::file-selector-button {
 .search .clear-btn:hover {
     transform: translateY(-1px);
     border-color: #b8c7dc;
-    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+    box-shadow: var(--shadow-md);
 }
 
+/* Primary */
 .btn.primary,
 .cta,
 .search button,
@@ -142,6 +172,7 @@ input[type="file"]::file-selector-button:hover {
     color: #1e3a8a;
 }
 
+/* Danger */
 .danger-btn,
 .owner-btn.delete,
 .action-btn.delete {
@@ -157,6 +188,7 @@ input[type="file"]::file-selector-button:hover {
     box-shadow: 0 10px 24px rgba(185, 28, 28, 0.1);
 }
 
+/* Focus */
 .btn:focus-visible,
 .back:focus-visible,
 .nav:focus-visible,
@@ -177,24 +209,28 @@ button:focus-visible {
     outline-offset: 2px;
 }
 
-.search,
+/* ── Search ── */
+.search {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: #ffffff;
+    box-shadow: var(--shadow-lg);
+}
+
+/* ── Form Fields ── */
 .auth-status,
 .field,
 .preview,
 .related-empty,
 .empty {
     border-color: var(--line);
-    border-radius: 8px;
-}
-
-.search {
-    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+    border-radius: var(--radius-sm);
 }
 
 input,
 textarea,
 select {
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     background: #ffffff;
 }
 
@@ -212,9 +248,10 @@ textarea::placeholder {
 
 input[type="file"] {
     border-color: #bfdbfe;
-    background: #f8fbff;
+    background: var(--surface);
 }
 
+/* ── Status Bars ── */
 .auth-status {
     background: var(--auth-bg);
     color: #334155;
@@ -223,7 +260,7 @@ input[type="file"] {
 .flash,
 .msg,
 .inline-errors {
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
 }
 
 .flash.success,
@@ -254,6 +291,7 @@ input[type="file"] {
     color: #92400e;
 }
 
+/* ── Chips ── */
 .chips {
     gap: 10px;
 }
@@ -299,6 +337,7 @@ input[type="file"] {
     font-weight: 800;
 }
 
+/* ── Listing Grid ── */
 .list {
     gap: 14px;
 }
@@ -323,13 +362,15 @@ input[type="file"] {
 .card.clickable:hover,
 .related-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 16px 34px rgba(15, 23, 42, 0.1);
+    box-shadow: var(--shadow-xl);
 }
 
+/* ── Thumbnails ── */
 .thumb,
 .thumb-link {
     width: 116px;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--line-soft);
 }
 
 .thumb {
@@ -343,9 +384,10 @@ input[type="file"] {
 .related-media,
 .preview img,
 .lightbox-image {
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
 }
 
+/* ── Text ── */
 .summary,
 .description,
 .history ul {
@@ -362,12 +404,14 @@ input[type="file"] {
     color: var(--muted);
 }
 
+/* ── Stats ── */
 .stats {
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
 }
 
 .stat {
     padding: 14px;
+    background: var(--surface);
 }
 
 .stat .label,
@@ -375,6 +419,7 @@ input[type="file"] {
     letter-spacing: 0.03em;
 }
 
+/* ── Related ── */
 .related-section {
     margin-top: 24px;
     padding: 0;
@@ -389,24 +434,29 @@ input[type="file"] {
 
 .related-card {
     overflow: hidden;
-    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.06);
+    background: var(--surface);
+    border: 1px solid var(--line-soft);
+    box-shadow: var(--shadow-md);
 }
 
 .related-body {
     padding: 12px;
 }
 
+/* ── Highlight ── */
 mark {
     background: #bfdbfe;
     color: #0f172a;
 }
 
+/* ── Lightbox ── */
 .lightbox-close {
     background: #ffffff;
     color: var(--text);
     box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
 }
 
+/* ── Responsive ── */
 @media (max-width: 760px) {
     .page {
         width: min(calc(100% - 28px), 1040px);

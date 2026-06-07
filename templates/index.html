@@ -7,18 +7,19 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&family=Sora:wght@700;800&display=swap" rel="stylesheet">
     <style>
         :root {
             --bg: #f7f4ec;
-            --card: #ffffff;
+            --card: #dce8f5;
             --text: #1b1d20;
             --muted: #60656f;
-            --line: #ded8ca;
+            --line: #d0d6e2;
             --brand: #d0562d;
             --accent: #ffd54f;
             --urgent: #cf3a2b;
             --featured: #cf3a2b;
-            --chip: #f1ecdf;
+            --chip: #e6eaf2;
         }
 
         * {
@@ -56,10 +57,22 @@
             justify-content: flex-end;
         }
 
+        .brand {
+            font-family: "Sora", "Manrope", sans-serif;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+        }
+
+        .site-title {
+            font-family: "Poppins", "Manrope", sans-serif;
+            font-weight: 500;
+            letter-spacing: 0.02em;
+            color: var(--muted);
+        }
+
         h1 {
             margin: 0;
             font-size: clamp(1.45rem, 2.2vw, 2rem);
-            letter-spacing: -0.02em;
         }
 
         .btn {
@@ -450,7 +463,7 @@
 <body>
     <main class="page">
         <section class="header">
-            <h1>Azison Listings</h1>
+            <h1><span class="brand">AZISON</span> <span class="site-title">LISTINGS</span></h1>
             <div class="header-actions">
                 {% if is_logged_in %}
                     <span class="btn">Hi, {{ current_user['full_name'] }}</span>

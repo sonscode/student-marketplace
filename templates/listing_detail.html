@@ -7,13 +7,14 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&family=Sora:wght@700;800&display=swap" rel="stylesheet">
     <style>
         :root {
             --bg: #f7f4ec;
-            --card: #ffffff;
+            --card: #dce8f5;
             --text: #1b1d20;
             --muted: #60656f;
-            --line: #ded8ca;
+            --line: #d0d6e2;
             --brand: #d0562d;
             --urgent: #cf3a2b;
             --featured: #cf3a2b;
@@ -39,7 +40,25 @@
             margin: 34px auto 50px;
         }
 
+        .brand {
+            font-family: "Sora", "Manrope", sans-serif;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+        }
+
+        .site-title {
+            font-family: "Poppins", "Manrope", sans-serif;
+            font-weight: 500;
+            letter-spacing: 0.02em;
+            color: var(--muted);
+        }
+
         .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
             margin-bottom: 14px;
         }
 
@@ -440,6 +459,7 @@
 <body>
     <main class="page">
         <div class="topbar">
+            <h1 style="margin:0;font-size:clamp(1.2rem,2vw,1.5rem)"><span class="brand">AZISON</span> <span class="site-title">MARKETPLACE</span></h1>
             <a class="back" href="{{ url_for('home', category=request.args.get('category'), search=request.args.get('search')) }}">⬅ Back to Listings</a>
         </div>
 
@@ -497,6 +517,10 @@
                     {% else %}
                         <strong class="deadline">{{ days_left }} day(s)</strong>
                     {% endif %}
+                </div>
+                <div class="field">
+                    <span class="label">Views</span>
+                    <strong>👁 {{ item['view_count'] or 0 }} views</strong>
                 </div>
             </section>
 

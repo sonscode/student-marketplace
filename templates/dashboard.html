@@ -7,15 +7,16 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&family=Sora:wght@700;800&display=swap" rel="stylesheet">
     <style>
         :root {
             --bg: #f7f4ec;
-            --card: #ffffff;
+            --card: #dce8f5;
             --text: #1b1d20;
             --muted: #60656f;
-            --line: #ded8ca;
+            --line: #d0d6e2;
             --brand: #d0562d;
-            --soft: #fcfbf8;
+            --soft: #eef2f8;
             --ok: #1d6f3a;
             --warn: #a25f12;
             --danger: #a31f23;
@@ -51,10 +52,22 @@
             gap: 10px;
         }
 
+        .brand {
+            font-family: "Sora", "Manrope", sans-serif;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+        }
+
+        .site-title {
+            font-family: "Poppins", "Manrope", sans-serif;
+            font-weight: 500;
+            letter-spacing: 0.02em;
+            color: var(--muted);
+        }
+
         .title-wrap h1 {
             margin: 0;
             font-size: clamp(1.4rem, 2.3vw, 2rem);
-            letter-spacing: -0.02em;
         }
 
         .title-wrap p {
@@ -448,6 +461,7 @@
                                 {% if item['is_expired'] %}
                                     <span class="chip expired">Expired</span>
                                 {% endif %}
+                                <span class="chip">👁 {{ item['view_count'] or 0 }} views</span>
                             </div>
 
                             <div class="row-actions">
