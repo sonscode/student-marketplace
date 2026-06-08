@@ -436,6 +436,75 @@
                 </div>
             {% endif %}
         </section>
+
+        <section class="section-heading">
+            <div>
+                <h2>Reports</h2>
+                <p>Reports submitted by users. Review the reason, then take action on the listing if needed.</p>
+            </div>
+            <span class="muted-text">{% if reports %}{{ reports|length }} total{% else %}0 total{% endif %}</span>
+        </section>
+
+        <section class="table-container">
+            {% if reports %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Listing</th>
+                            <th>Category</th>
+                            <th>Reason</th>
+                            <th>Comment</th>
+                            <th>Reporter</th>
+                            <th>Reporter Phone</th>
+                            <th>Reporter Email</th>
+                            <th>Submitted</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in reports %}
+                        <tr>
+                            <td>{{ r['id'] }}</td>
+                            <td>
+                                {% if r['listing_exists'] %}
+                                    <a href="{{ url_for('listing_detail', id=r['listing_id']) }}" target="_blank" rel="noopener">{{ r['listing_title'] or ('Listing #' + r['listing_id']|string) }}</a>
+                                {% else %}
+                                    <span class="muted-text">Listing #{{ r['listing_id'] }} (deleted)</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ r['listing_category'] or '—' }}</td>
+                            <td><span class="badge expired">{{ r['reason'] }}</span></td>
+                            <td>
+                                {% if r['comment'] %}
+                                    <span title="{{ r['comment'] }}">{{ r['comment'][:80] }}{% if r['comment']|length > 80 %}…{% endif %}</span>
+                                {% else %}
+                                    <span class="muted-text">—</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ r['reporter_name'] }}</td>
+                            <td>{{ r['reporter_phone'] or '—' }}</td>
+                            <td>{{ r['reporter_email'] or '—' }}</td>
+                            <td class="muted-text">{{ r['created_at'] }}</td>
+                            <td>
+                                {% if r['listing_exists'] %}
+                                    <form method="POST" action="{{ url_for('admin_delete_listing', id=r['listing_id']) }}" onsubmit="return confirm('Delete this listing? This will also remove the report.');">
+                                        <button class="danger-btn" type="submit">Delete listing</button>
+                                    </form>
+                                {% else %}
+                                    <span class="muted-text">No actions</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <div class="empty">
+                    <p>No reports yet.</p>
+                </div>
+            {% endif %}
+        </section>
     </main>
 </body>
 </html>

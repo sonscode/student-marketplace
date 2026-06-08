@@ -713,17 +713,61 @@
     <script>
         document.addEventListener("DOMContentLoaded", function () {
             var flashStack = document.querySelector(".flash-stack.floating");
-            if (!flashStack) {
-                return;
+            if (flashStack) {
+                window.setTimeout(function () {
+                    flashStack.classList.add("is-hiding");
+                    window.setTimeout(function () {
+                        flashStack.remove();
+                    }, 220);
+                }, 4200);
             }
 
+            // Intercept report form submission to show a clear toast confirmation
+            // that pops up at the top of the screen and disappears after a few seconds.
+            var reportForm = document.querySelector("form.report-form");
+            if (reportForm) {
+                reportForm.addEventListener("submit", function () {
+                    showReportToast("Submitting your report\u2026", "info");
+                    // The form is a normal POST that triggers a server redirect.
+                    // The server will flash success/error and re-render this page
+                    // with the flash message. We also show this optimistic toast
+                    // so the user gets immediate feedback.
+                    window.setTimeout(function () {
+                        showReportToast("Report submitted. Thank you for helping keep Azison safe.", "success");
+                    }, 350);
+                    var reportDetails = reportForm.closest("details");
+                    if (reportDetails) {
+                        reportDetails.open = false;
+                    }
+                });
+            }
+        });
+
+        function showReportToast(message, category) {
+            category = category || "info";
+            var existing = document.getElementById("report-toast");
+            if (existing) {
+                existing.remove();
+            }
+            var toast = document.createElement("section");
+            toast.id = "report-toast";
+            toast.className = "flash-stack floating";
+            toast.setAttribute("role", "status");
+            toast.setAttribute("aria-live", "polite");
+            var p = document.createElement("p");
+            p.className = "flash " + category;
+            p.textContent = message;
+            toast.appendChild(p);
+            document.body.appendChild(toast);
             window.setTimeout(function () {
-                flashStack.classList.add("is-hiding");
+                toast.classList.add("is-hiding");
                 window.setTimeout(function () {
-                    flashStack.remove();
+                    if (toast.parentNode) {
+                        toast.parentNode.removeChild(toast);
+                    }
                 }, 220);
             }, 4200);
-        });
+        }
     </script>
     <script src="{{ url_for('static', filename='js/lightbox.js') }}"></script>
 </body>
