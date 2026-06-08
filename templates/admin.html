@@ -302,6 +302,16 @@
                 <h2>Users</h2>
                 <p>All registered users. Deactivated users cannot log in, create listings, edit listings, or boost listings.</p>
             </div>
+            <div class="actions" style="gap: 8px;">
+                <span class="muted-text">{% if users %}{{ users|length }} total{% else %}0 total{% endif %}</span>
+                {% if users %}
+                    <form method="POST" action="{{ url_for('admin_deactivate_all_users') }}" onsubmit="return confirm('Deactivate ALL non-admin users? You can re-activate them later from this page.');" style="display:inline; margin: 0;">
+                        <input type="hidden" name="confirm" value="yes">
+                        <button class="danger-btn" type="submit">Deactivate all</button>
+                    </form>
+                    <button type="button" class="danger-btn" onclick="confirmDeleteAllUsers();">Delete all</button>
+                {% endif %}
+            </div>
         </section>
 
         <section class="table-container">
@@ -376,6 +386,12 @@
                 <h2>Listings</h2>
                 <p>Manage all listings on Azison</p>
             </div>
+            <div class="actions" style="gap: 8px;">
+                <span class="muted-text">{% if listings %}{{ listings|length }} total{% else %}0 total{% endif %}</span>
+                {% if listings %}
+                    <button type="button" class="danger-btn" onclick="confirmDeleteAllListings();">Delete all</button>
+                {% endif %}
+            </div>
         </section>
 
         <section class="table-container">
@@ -442,7 +458,15 @@
                 <h2>Reports</h2>
                 <p>Reports submitted by users. Review the reason, then take action on the listing if needed.</p>
             </div>
-            <span class="muted-text">{% if reports %}{{ reports|length }} total{% else %}0 total{% endif %}</span>
+            <div class="actions" style="gap: 8px;">
+                <span class="muted-text">{% if reports %}{{ reports|length }} total{% else %}0 total{% endif %}</span>
+                {% if reports %}
+                    <form method="POST" action="{{ url_for('admin_clear_reports') }}" onsubmit="return confirm('Clear ALL reports? Listings will be preserved. This cannot be undone.');" style="display:inline; margin: 0;">
+                        <input type="hidden" name="confirm" value="yes">
+                        <button class="danger-btn" type="submit">Clear all</button>
+                    </form>
+                {% endif %}
+            </div>
         </section>
 
         <section class="table-container">
@@ -487,13 +511,18 @@
                             <td>{{ r['reporter_email'] or '—' }}</td>
                             <td class="muted-text">{{ r['created_at'] }}</td>
                             <td>
-                                {% if r['listing_exists'] %}
-                                    <form method="POST" action="{{ url_for('admin_delete_listing', id=r['listing_id']) }}" onsubmit="return confirm('Delete this listing? This will also remove the report.');">
-                                        <button class="danger-btn" type="submit">Delete listing</button>
+                                <div style="display:flex; flex-direction:column; gap: 6px; align-items: flex-start;">
+                                    <form method="POST" action="{{ url_for('admin_dismiss_report', report_id=r['id']) }}" onsubmit="return confirm('Dismiss this report? The listing will be kept.');" style="margin:0;">
+                                        <button class="success-btn" type="submit">Dismiss</button>
                                     </form>
-                                {% else %}
-                                    <span class="muted-text">No actions</span>
-                                {% endif %}
+                                    {% if r['listing_exists'] %}
+                                        <form method="POST" action="{{ url_for('admin_delete_listing', id=r['listing_id']) }}" onsubmit="return confirm('Delete this listing? This will also remove the report.');" style="margin:0;">
+                                            <button class="danger-btn" type="submit">Delete listing</button>
+                                        </form>
+                                    {% else %}
+                                        <span class="muted-text">No listing</span>
+                                    {% endif %}
+                                </div>
                             </td>
                         </tr>
                         {% endfor %}
@@ -506,5 +535,110 @@
             {% endif %}
         </section>
     </main>
+
+    <div id="bulk-confirm-modal" style="display:none; position: fixed; inset: 0; background: rgba(12, 14, 18, 0.6); align-items: center; justify-content: center; z-index: 9999; padding: 18px;">
+        <div style="background: #fff; border-radius: 16px; max-width: 480px; width: 100%; padding: 22px; display: grid; gap: 14px; box-shadow: 0 18px 40px rgba(15, 23, 42, 0.25);">
+            <h3 id="bulk-confirm-title" style="margin: 0; font-size: 1.1rem; color: var(--danger);">Confirm bulk action</h3>
+            <p id="bulk-confirm-message" style="margin: 0; color: #2c3037; font-size: 0.95rem;"></p>
+            <label id="bulk-confirm-phrase-label" for="bulk-confirm-input" style="font-weight: 700; font-size: 0.85rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em;"></label>
+            <input id="bulk-confirm-input" type="text" autocomplete="off" style="border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font: inherit; background: #fcfbf8;">
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px;">
+                <button type="button" class="btn" onclick="closeBulkConfirm();">Cancel</button>
+                <button id="bulk-confirm-submit" type="button" class="danger-btn" disabled>Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        var bulkConfirmState = {
+            action: "",
+            phrase: "",
+            endpoint: ""
+        };
+
+        function showBulkConfirm(opts) {
+            bulkConfirmState = {
+                action: opts.action,
+                phrase: opts.phrase,
+                endpoint: opts.endpoint
+            };
+            document.getElementById("bulk-confirm-title").textContent = opts.title;
+            document.getElementById("bulk-confirm-message").textContent = opts.message;
+            document.getElementById("bulk-confirm-phrase-label").textContent =
+                'Type "' + opts.phrase + '" to confirm:';
+            var input = document.getElementById("bulk-confirm-input");
+            input.value = "";
+            document.getElementById("bulk-confirm-submit").disabled = true;
+            document.getElementById("bulk-confirm-modal").style.display = "flex";
+            window.setTimeout(function () { input.focus(); }, 30);
+        }
+
+        function closeBulkConfirm() {
+            document.getElementById("bulk-confirm-modal").style.display = "none";
+        }
+
+        function submitBulkConfirm() {
+            var input = document.getElementById("bulk-confirm-input").value.trim();
+            if (input !== bulkConfirmState.phrase) {
+                window.alert('Please type "' + bulkConfirmState.phrase + '" exactly to confirm.');
+                return;
+            }
+            var form = document.createElement("form");
+            form.method = "POST";
+            form.action = bulkConfirmState.endpoint;
+            var confirmField = document.createElement("input");
+            confirmField.type = "hidden";
+            confirmField.name = "confirm";
+            confirmField.value = "yes";
+            form.appendChild(confirmField);
+            var phraseField = document.createElement("input");
+            phraseField.type = "hidden";
+            phraseField.name = "typed_phrase";
+            phraseField.value = bulkConfirmState.phrase;
+            form.appendChild(phraseField);
+            document.body.appendChild(form);
+            form.submit();
+        }
+
+        document.addEventListener("DOMContentLoaded", function () {
+            var input = document.getElementById("bulk-confirm-input");
+            var submit = document.getElementById("bulk-confirm-submit");
+            if (input && submit) {
+                input.addEventListener("input", function () {
+                    submit.disabled = input.value.trim() !== bulkConfirmState.phrase;
+                });
+                input.addEventListener("keydown", function (event) {
+                    if (event.key === "Enter") {
+                        event.preventDefault();
+                        if (!submit.disabled) {
+                            submitBulkConfirm();
+                        }
+                    } else if (event.key === "Escape") {
+                        closeBulkConfirm();
+                    }
+                });
+            }
+        });
+
+        function confirmDeleteAllUsers() {
+            showBulkConfirm({
+                action: "delete_all_users",
+                phrase: "DELETE ALL USERS",
+                endpoint: "{{ url_for('admin_delete_all_users') }}",
+                title: "Delete ALL non-admin users?",
+                message: "This will permanently remove every non-admin user account, their listings, payment records and reports. This action cannot be undone. Admin accounts (including yours) are always preserved."
+            });
+        }
+
+        function confirmDeleteAllListings() {
+            showBulkConfirm({
+                action: "delete_all_listings",
+                phrase: "DELETE ALL LISTINGS",
+                endpoint: "{{ url_for('admin_delete_all_listings') }}",
+                title: "Delete ALL listings?",
+                message: "This will permanently remove every listing, its image file, related payment records and reports. This action cannot be undone."
+            });
+        }
+    </script>
 </body>
 </html>

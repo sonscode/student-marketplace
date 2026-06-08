@@ -2354,6 +2354,230 @@ def admin_delete_listing(id):
     return redirect(next_url)
 
 
+@app.route("/admin/reports/<int:report_id>/dismiss", methods=["POST"])
+@admin_required
+def admin_dismiss_report(report_id):
+    """Delete a single report row without touching the listing itself."""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM reports WHERE id = ?", (report_id,))
+    report = cursor.fetchone()
+    if report is None:
+        conn.close()
+        flash("Report not found.", "error")
+        return redirect(url_for("admin_panel"))
+
+    cursor.execute("DELETE FROM reports WHERE id = ?", (report_id,))
+    conn.commit()
+    conn.close()
+
+    flash("Report dismissed.", "success")
+    return redirect(url_for("admin_panel"))
+
+
+@app.route("/admin/reports/clear", methods=["POST"])
+@admin_required
+def admin_clear_reports():
+    """Bulk-delete all report rows. Reports only \u2014 listings are untouched."""
+    confirm = (request.form.get("confirm") or "").strip().lower()
+    if confirm not in ("yes", "true", "1"):
+        flash("Bulk clear cancelled. Confirmation token missing.", "error")
+        return redirect(url_for("admin_panel"))
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) AS total FROM reports")
+    total = cursor.fetchone()["total"] or 0
+    cursor.execute("DELETE FROM reports")
+    conn.commit()
+    conn.close()
+
+    flash(f"Cleared {total} report(s). Listings were preserved.", "success")
+    return redirect(url_for("admin_panel"))
+
+
+def _confirm_token_matches(value):
+    return (value or "").strip().lower() in {"yes", "true", "1"}
+
+
+@app.route("/admin/users/deactivate-all", methods=["POST"])
+@admin_required
+def admin_deactivate_all_users():
+    """Deactivate every non-admin user. Admins are always preserved."""
+    if not _confirm_token_matches(request.form.get("confirm")):
+        flash("Bulk deactivate cancelled. Confirmation token missing.", "error")
+        return redirect(url_for("admin_panel"))
+
+    admin_user = current_user_record()
+    admin_id = admin_user.get("id") if admin_user else None
+
+    conn = get_db()
+    cursor = conn.cursor()
+    query = "UPDATE users SET is_active = 0 WHERE is_admin = 0"
+    params = []
+    if admin_id is not None:
+        query += " AND id != ?"
+        params.append(admin_id)
+    cursor.execute(query, params)
+    affected = cursor.rowcount or 0
+    conn.commit()
+    conn.close()
+
+    flash(f"Deactivated {affected} user(s). Admin accounts were preserved.", "success")
+    return redirect(url_for("admin_panel"))
+
+
+@app.route("/admin/users/delete-all", methods=["POST"])
+@admin_required
+def admin_delete_all_users():
+    """Hard-delete every non-admin user along with their listings, payments and reports.
+
+    This is destructive: removes user rows, their listings (and image files),
+    their payment records, and reports they filed or that target their listings.
+    Admin accounts are always preserved, and you cannot delete your own account.
+    """
+    if not _confirm_token_matches(request.form.get("confirm")):
+        flash("Bulk delete cancelled. Confirmation token missing.", "error")
+        return redirect(url_for("admin_panel"))
+
+    typed_phrase = (request.form.get("typed_phrase") or "").strip()
+    if typed_phrase != "DELETE ALL USERS":
+        flash('Bulk delete cancelled. Type "DELETE ALL USERS" to confirm.', "error")
+        return redirect(url_for("admin_panel"))
+
+    admin_user = current_user_record()
+    admin_id = admin_user.get("id") if admin_user else None
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    # Build the set of non-admin user ids we are allowed to delete.
+    user_query = "SELECT id, phone FROM users WHERE is_admin = 0"
+    user_params = []
+    if admin_id is not None:
+        user_query += " AND id != ?"
+        user_params.append(admin_id)
+    cursor.execute(user_query, user_params)
+    victims = cursor.fetchall()
+    victim_ids = [row["id"] for row in victims]
+    victim_phones = [row["phone"] for row in victims if row["phone"]]
+
+    if not victim_ids:
+        conn.close()
+        flash("No non-admin users to delete.", "info")
+        return redirect(url_for("admin_panel"))
+
+    placeholders = ",".join("?" for _ in victim_ids)
+
+    # Collect listings + their image filenames before we nuke them, so we can
+    # clean up the uploads folder afterwards.
+    cursor.execute(
+        f"SELECT id, image FROM listings WHERE owner_phone IN ({','.join('?' for _ in victim_phones)})" if victim_phones else "SELECT id, image FROM listings WHERE 0",
+        victim_phones,
+    )
+    listing_rows = cursor.fetchall()
+    listing_ids = [row["id"] for row in listing_rows]
+
+    # Wipe dependent rows first to keep the database tidy.
+    if listing_ids:
+        listing_placeholders = ",".join("?" for _ in listing_ids)
+        cursor.execute(
+            f"DELETE FROM payments WHERE listing_id IN ({listing_placeholders})",
+            listing_ids,
+        )
+        cursor.execute(
+            f"DELETE FROM reports WHERE listing_id IN ({listing_placeholders})",
+            listing_ids,
+        )
+        cursor.execute(
+            f"DELETE FROM listings WHERE id IN ({listing_placeholders})",
+            listing_ids,
+        )
+
+    cursor.execute(
+        f"DELETE FROM reports WHERE reporter_user_id IN ({placeholders})",
+        victim_ids,
+    )
+    cursor.execute(
+        f"DELETE FROM users WHERE id IN ({placeholders})",
+        victim_ids,
+    )
+    conn.commit()
+
+    # Best-effort cleanup of orphan image files. Failures here don't roll back the DB.
+    for row in listing_rows:
+        image_name = row["image"]
+        if not image_name:
+            continue
+        image_path = os.path.join(app.config["UPLOAD_FOLDER"], image_name)
+        try:
+            if os.path.exists(image_path):
+                os.remove(image_path)
+        except OSError:
+            app.logger.warning("Failed to remove orphan listing image %s", image_path)
+
+    conn.close()
+
+    flash(
+        f"Deleted {len(victim_ids)} user(s), {len(listing_ids)} listing(s) and their related data. Admin accounts were preserved.",
+        "success",
+    )
+    return redirect(url_for("admin_panel"))
+
+
+@app.route("/admin/listings/delete-all", methods=["POST"])
+@admin_required
+def admin_delete_all_listings():
+    """Hard-delete every listing and its image file. This is destructive."""
+    if not _confirm_token_matches(request.form.get("confirm")):
+        flash("Bulk delete cancelled. Confirmation token missing.", "error")
+        return redirect(url_for("admin_panel"))
+
+    typed_phrase = (request.form.get("typed_phrase") or "").strip()
+    if typed_phrase != "DELETE ALL LISTINGS":
+        flash('Bulk delete cancelled. Type "DELETE ALL LISTINGS" to confirm.', "error")
+        return redirect(url_for("admin_panel"))
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, image FROM listings")
+    listing_rows = cursor.fetchall()
+    listing_ids = [row["id"] for row in listing_rows]
+
+    if not listing_ids:
+        conn.close()
+        flash("No listings to delete.", "info")
+        return redirect(url_for("admin_panel"))
+
+    placeholders = ",".join("?" for _ in listing_ids)
+    cursor.execute(
+        f"DELETE FROM payments WHERE listing_id IN ({placeholders})",
+        listing_ids,
+    )
+    cursor.execute(
+        f"DELETE FROM reports WHERE listing_id IN ({placeholders})",
+        listing_ids,
+    )
+    cursor.execute("DELETE FROM listings")
+    conn.commit()
+
+    for row in listing_rows:
+        image_name = row["image"]
+        if not image_name:
+            continue
+        image_path = os.path.join(app.config["UPLOAD_FOLDER"], image_name)
+        try:
+            if os.path.exists(image_path):
+                os.remove(image_path)
+        except OSError:
+            app.logger.warning("Failed to remove orphan listing image %s", image_path)
+
+    conn.close()
+
+    flash(f"Deleted {len(listing_ids)} listing(s) and their image files.", "success")
+    return redirect(url_for("admin_panel"))
+
+
 if __name__ == "__main__":
     app.run(debug=env_flag("FLASK_DEBUG"))
 
