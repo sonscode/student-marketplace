@@ -9,6 +9,10 @@ from datetime import datetime, timedelta
 from functools import wraps
 
 import sqlite3
+try:
+    import psycopg2
+except ImportError:
+    psycopg2 = None
 from flask import Flask, flash, jsonify, render_template, request, redirect, url_for, session
 from markupsafe import Markup
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -30,6 +34,8 @@ def allowed_file(filename):
     )
 
 load_dotenv()
+
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 
 
 def env_flag(name):
@@ -100,9 +106,115 @@ def highlight(text, search):
 UPLOAD_FOLDER = os.path.join(app.root_path, "static", "uploads")
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
+POSTGRES_SCHEMA_FILE = os.path.join(app.root_path, "postgres_schema.sql")
+POSTGRES_TABLES = ("users", "listings", "payments", "reports")
+
+
+class DatabaseRow(dict):
+    def __init__(self, columns, values):
+        super().__init__(zip(columns, values))
+        self._values = tuple(values)
+
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return self._values[key]
+        return super().__getitem__(key)
+
+
+class PostgresCursor:
+    def __init__(self, cursor):
+        self._cursor = cursor
+        self.lastrowid = None
+        self._columns = []
+
+    @property
+    def rowcount(self):
+        return self._cursor.rowcount
+
+    @property
+    def description(self):
+        return self._cursor.description
+
+    def execute(self, query, params=None):
+        sql = query.replace("?", "%s")
+        if self._should_return_id(sql):
+            sql = sql.rstrip().rstrip(";") + " RETURNING id"
+            self._cursor.execute(sql, self._normalize_params(params))
+            row = self._cursor.fetchone()
+            self.lastrowid = row[0] if row else None
+        else:
+            self._cursor.execute(sql, self._normalize_params(params))
+            self.lastrowid = None
+
+        self._columns = [column[0] for column in self._cursor.description] if self._cursor.description else []
+        return self
+
+    def executemany(self, query, param_rows):
+        sql = query.replace("?", "%s")
+        normalized_rows = [self._normalize_params(params) or () for params in param_rows]
+        self._cursor.executemany(sql, normalized_rows)
+        self.lastrowid = None
+        self._columns = []
+        return self
+
+    def fetchone(self):
+        row = self._cursor.fetchone()
+        return self._make_row(row) if row is not None else None
+
+    def fetchall(self):
+        return [self._make_row(row) for row in self._cursor.fetchall()]
+
+    def close(self):
+        self._cursor.close()
+
+    def _make_row(self, row):
+        return DatabaseRow(self._columns, row) if self._columns else row
+
+    def _normalize_params(self, params):
+        if params is None:
+            return None
+        if isinstance(params, dict):
+            return params
+
+        normalized = tuple(params)
+        return normalized or None
+
+    def _should_return_id(self, sql):
+        return bool(
+            re.match(r"\s*INSERT\s+INTO\s+(users|listings|payments|reports)\b", sql, re.IGNORECASE)
+            and not re.search(r"\bRETURNING\b", sql, re.IGNORECASE)
+        )
+
+
+class PostgresConnection:
+    def __init__(self, connection):
+        self._connection = connection
+
+    def cursor(self):
+        return PostgresCursor(self._connection.cursor())
+
+    def commit(self):
+        self._connection.commit()
+
+    def rollback(self):
+        self._connection.rollback()
+
+    def close(self):
+        self._connection.close()
+
+
+def normalize_database_url(database_url):
+    if database_url.startswith("postgres://"):
+        return "postgresql://" + database_url[len("postgres://"):]
+    return database_url
 
 
 def get_db():
+    if DATABASE_URL:
+        if psycopg2 is None:
+            raise RuntimeError("DATABASE_URL is set but psycopg2 is not installed.")
+        return PostgresConnection(psycopg2.connect(normalize_database_url(DATABASE_URL)))
+
     conn = sqlite3.connect("database.db")
     conn.row_factory = sqlite3.Row
     return conn
@@ -830,8 +942,112 @@ def extract_listing_id_from_external_reference(external_reference):
     return None
 
 
+def load_postgres_schema():
+    with open(POSTGRES_SCHEMA_FILE, "r", encoding="utf-8") as schema_file:
+        return schema_file.read()
+
+
+def reset_postgres_sequences(cursor):
+    for table in POSTGRES_TABLES:
+        cursor.execute(
+            f"""
+            SELECT setval(
+                pg_get_serial_sequence('{table}', 'id'),
+                COALESCE((SELECT MAX(id) FROM {table}), 1),
+                (SELECT COUNT(*) > 0 FROM {table})
+            )
+            """
+        )
+
+
+def init_postgres_db():
+    conn = get_db()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute(load_postgres_schema())
+
+        cursor.execute("UPDATE listings SET owner_phone = phone WHERE owner_phone IS NULL OR owner_phone = ''")
+        cursor.execute("UPDATE listings SET view_count = 0 WHERE view_count IS NULL")
+
+        cursor.execute("UPDATE users SET auth_provider = 'local' WHERE auth_provider IS NULL OR auth_provider = ''")
+        cursor.execute("UPDATE users SET is_admin = 0 WHERE is_admin IS NULL")
+        cursor.execute("UPDATE users SET is_active = 1 WHERE is_active IS NULL")
+
+        payment_columns = set()
+        cursor.execute(
+            """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'payments'
+            """
+        )
+        for column in cursor.fetchall():
+            payment_columns.add(column["column_name"])
+
+        if "reference_id" in payment_columns:
+            cursor.execute(
+                """
+                UPDATE payments
+                SET reference = reference_id
+                WHERE (reference IS NULL OR TRIM(reference) = '')
+                  AND reference_id IS NOT NULL
+                  AND TRIM(reference_id) != ''
+                """
+            )
+
+        cursor.execute("SELECT id FROM payments WHERE reference IS NULL OR TRIM(reference) = ''")
+        payment_rows_missing_reference = cursor.fetchall()
+        for payment_row in payment_rows_missing_reference:
+            cursor.execute(
+                "UPDATE payments SET reference = ? WHERE id = ?",
+                (str(uuid.uuid4()), payment_row["id"]),
+            )
+
+        fallback_payment_timestamp = datetime.utcnow().isoformat(timespec="seconds")
+        cursor.execute(
+            "UPDATE payments SET status = ? WHERE status IS NULL OR TRIM(status) = ''",
+            (PAYMENT_STATUS_PENDING,),
+        )
+        cursor.execute(
+            "UPDATE payments SET amount = 0 WHERE amount IS NULL",
+        )
+        cursor.execute(
+            "UPDATE payments SET created_at = ? WHERE created_at IS NULL OR TRIM(created_at) = ''",
+            (fallback_payment_timestamp,),
+        )
+        cursor.execute(
+            "UPDATE payments SET phone = '' WHERE phone IS NULL",
+        )
+
+        fallback_report_timestamp = datetime.utcnow().isoformat(timespec="seconds")
+        cursor.execute(
+            "UPDATE reports SET reason = ? WHERE reason IS NULL OR TRIM(reason) = ''",
+            ("Other",),
+        )
+        cursor.execute("UPDATE reports SET comment = '' WHERE comment IS NULL")
+        cursor.execute(
+            "UPDATE reports SET created_at = ? WHERE created_at IS NULL OR TRIM(created_at) = ''",
+            (fallback_report_timestamp,),
+        )
+
+        reset_postgres_sequences(cursor)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cursor.close()
+        conn.close()
+
+
 # creating table
 def init_db():
+    if DATABASE_URL:
+        init_postgres_db()
+        return
+
     conn = get_db()
     cursor = conn.cursor()
 
