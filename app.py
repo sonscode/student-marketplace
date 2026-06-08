@@ -183,6 +183,14 @@ PRICE_MIN = 500
 PRICE_MAX = 50000000
 DESCRIPTION_MAX_WORDS = 50
 BOOST_LISTING_AMOUNT = env_int("BOOST_LISTING_AMOUNT", 500)
+REPORT_REASONS = (
+    "Spam",
+    "Scam",
+    "Wrong Category",
+    "Inappropriate Content",
+    "Other",
+)
+REPORT_COMMENT_MAX_LENGTH = 500
 # Pending payments should not lock listings forever.
 # Default TTL: 120s (2 minutes) unless overridden by env.
 PAYMENT_PENDING_TTL_SECONDS = env_int("PAYMENT_PENDING_TTL_SECONDS", 120)
@@ -359,14 +367,14 @@ def current_user_record():
     row = None
     if user_id is not None:
         cursor.execute(
-            "SELECT id, full_name, phone, email, google_sub, auth_provider, created_at FROM users WHERE id = ?",
+            "SELECT id, full_name, phone, email, google_sub, auth_provider, is_admin, is_active, created_at FROM users WHERE id = ?",
             (user_id,),
         )
         row = cursor.fetchone()
 
     if row is None and user_phone:
         cursor.execute(
-            "SELECT id, full_name, phone, email, google_sub, auth_provider, created_at FROM users WHERE phone = ?",
+            "SELECT id, full_name, phone, email, google_sub, auth_provider, is_admin, is_active, created_at FROM users WHERE phone = ?",
             (user_phone,),
         )
         row = cursor.fetchone()
@@ -386,8 +394,16 @@ def current_user_record():
         "email": row["email"] or "",
         "google_sub": row["google_sub"] or "",
         "auth_provider": row["auth_provider"] or "local",
+        "is_admin": bool(row["is_admin"] == 1),
+        "is_active": bool(row["is_active"] == 1),
         "created_at": row["created_at"],
     }
+
+
+def user_is_deactivated(user):
+    if not user:
+        return True
+    return not user.get("is_active", True)
 
 
 @app.context_processor
@@ -403,11 +419,32 @@ def inject_auth():
 def login_required(view_func):
     @wraps(view_func)
     def wrapped(*args, **kwargs):
-        if current_user_record() is None:
+        user = current_user_record()
+        if user is None:
             next_url = request.path
             if request.query_string:
                 next_url += "?" + request.query_string.decode("utf-8")
             return redirect(url_for("login", next=next_url))
+        if user_is_deactivated(user):
+            clear_user_session()
+            flash("Your account has been deactivated. Please contact support.", "error")
+            return redirect(url_for("login"))
+        return view_func(*args, **kwargs)
+
+    return wrapped
+
+
+def admin_required(view_func):
+    @wraps(view_func)
+    def wrapped(*args, **kwargs):
+        user = current_user_record()
+        if user is None:
+            next_url = request.path
+            if request.query_string:
+                next_url += "?" + request.query_string.decode("utf-8")
+            return redirect(url_for("login", next=next_url))
+        if not user.get("is_admin"):
+            return "Admin access required", 403
         return view_func(*args, **kwargs)
 
     return wrapped
@@ -836,6 +873,7 @@ def init_db():
             email TEXT,
             google_sub TEXT,
             auth_provider TEXT NOT NULL DEFAULT 'local',
+            is_admin INTEGER DEFAULT 0,
             created_at TEXT NOT NULL
         )
         """
@@ -850,8 +888,14 @@ def init_db():
         cursor.execute("ALTER TABLE users ADD COLUMN google_sub TEXT")
     if "auth_provider" not in user_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN auth_provider TEXT DEFAULT 'local'")
+    if "is_admin" not in user_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0")
+    if "is_active" not in user_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1")
 
     cursor.execute("UPDATE users SET auth_provider = 'local' WHERE auth_provider IS NULL OR auth_provider = ''")
+    cursor.execute("UPDATE users SET is_admin = 0 WHERE is_admin IS NULL")
+    cursor.execute("UPDATE users SET is_active = 1 WHERE is_active IS NULL")
     cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique ON users(email)")
     cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub_unique ON users(google_sub)")
 
@@ -928,6 +972,47 @@ def init_db():
     cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_provider_reference_unique ON payments(provider_reference)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_payments_listing_id ON payments(listing_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status)")
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS reports(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            listing_id INTEGER NOT NULL,
+            reporter_user_id INTEGER NOT NULL,
+            reason TEXT NOT NULL,
+            comment TEXT,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+
+    cursor.execute("PRAGMA table_info(reports)")
+    report_columns = [row[1] for row in cursor.fetchall()]
+
+    if "listing_id" not in report_columns:
+        cursor.execute("ALTER TABLE reports ADD COLUMN listing_id INTEGER")
+    if "reporter_user_id" not in report_columns:
+        cursor.execute("ALTER TABLE reports ADD COLUMN reporter_user_id INTEGER")
+    if "reason" not in report_columns:
+        cursor.execute("ALTER TABLE reports ADD COLUMN reason TEXT")
+    if "comment" not in report_columns:
+        cursor.execute("ALTER TABLE reports ADD COLUMN comment TEXT")
+    if "created_at" not in report_columns:
+        cursor.execute("ALTER TABLE reports ADD COLUMN created_at TEXT")
+
+    fallback_report_timestamp = datetime.utcnow().isoformat(timespec="seconds")
+    cursor.execute(
+        "UPDATE reports SET reason = ? WHERE reason IS NULL OR TRIM(reason) = ''",
+        ("Other",),
+    )
+    cursor.execute("UPDATE reports SET comment = '' WHERE comment IS NULL")
+    cursor.execute(
+        "UPDATE reports SET created_at = ? WHERE created_at IS NULL OR TRIM(created_at) = ''",
+        (fallback_report_timestamp,),
+    )
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_reports_listing_id ON reports(listing_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_reports_reporter_user_id ON reports(reporter_user_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_reports_created_at ON reports(created_at)")
 
     conn.commit()
     conn.close()
@@ -1029,35 +1114,46 @@ def home():
     if "listings" not in locals():
         listings = cursor.fetchall()
 
-    enhanced_listings = []
+    today = datetime.today().date()
+    featured_listings = []
+    active_listings = []
+    expired_listings = []
     for item in listings:
         leave_date = datetime.strptime(item["leave_date"], "%Y-%m-%d").date()
-        today = datetime.today().date()
         days_left = (leave_date - today).days
-        if days_left < 0:
-            continue
 
         owner_phone = item["owner_phone"] or ""
+        listing_data = {
+            "id": item["id"],
+            "title": item["title"],
+            "price": item["price"],
+            "category": item["category"],
+            "phone": item["phone"],
+            "owner_phone": owner_phone,
+            "leave_date": item["leave_date"],
+            "description": item["description"] or "",
+            "image": item["image"],
+            "is_featured": item["is_featured"],
+            "days_left": days_left,
+            "is_expired": days_left < 0,
+            "can_manage": bool(user_phone and user_phone == owner_phone),
+        }
 
-        enhanced_listings.append(
-            {
-                "id": item["id"],
-                "title": item["title"],
-                "price": item["price"],
-                "category": item["category"],
-                "phone": item["phone"],
-                "owner_phone": owner_phone,
-                "leave_date": item["leave_date"],
-                "description": item["description"] or "",
-                "image": item["image"],
-                "is_featured": item["is_featured"],
-                "days_left": days_left,
-                "can_manage": bool(user_phone and user_phone == owner_phone),
-            }
-        )
+        if listing_data["is_expired"]:
+            expired_listings.append(listing_data)
+        elif item["is_featured"] == 1:
+            featured_listings.append(listing_data)
+        else:
+            active_listings.append(listing_data)
+
+    enhanced_listings = featured_listings + active_listings + expired_listings
 
     conn.close()
-    return render_template("index.html", listings=enhanced_listings, search=search)
+    return render_template(
+        "index.html",
+        listings=enhanced_listings,
+        search=search,
+    )
 
 
 @app.route("/register", methods=["GET", "POST"])
@@ -1123,7 +1219,8 @@ def register():
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    if current_user_record():
+    user = current_user_record()
+    if user and not user_is_deactivated(user):
         return redirect(url_for("home"))
 
     error = ""
@@ -1146,6 +1243,9 @@ def login():
             error = "This account uses Google login. Use Continue with Google."
         elif not check_password_hash(user["password_hash"], password):
             error = "Invalid phone or password."
+        elif user["is_active"] == 0:
+            clear_user_session()
+            error = "Your account has been deactivated. Please contact support."
         else:
             set_user_session(user)
             return redirect(next_url)
@@ -1245,6 +1345,11 @@ def google_authorized():
 
     if user is None:
         return "Unable to complete Google sign-in. Please try again.", 500
+
+    if user["is_active"] == 0:
+        clear_user_session()
+        flash("Your account has been deactivated. Please contact support.", "error")
+        return redirect(url_for("login"))
 
     set_user_session(user)
     next_url = sanitize_next_url(session.pop("oauth_next", url_for("home")))
@@ -1679,7 +1784,51 @@ def listing_detail(id):
         can_manage=can_manage,
         pending_payment_reference=pending_payment_reference,
         boost_amount=effective_boost_amount(),
+        report_reasons=REPORT_REASONS,
+        report_comment_max_length=REPORT_COMMENT_MAX_LENGTH,
     )
+
+
+@app.route("/listing/<int:listing_id>/report", methods=["POST"])
+@login_required
+def report_listing(listing_id):
+    user = current_user_record()
+    reason = (request.form.get("reason") or "").strip()
+    comment = (request.form.get("comment") or "").strip()
+    next_url = url_for("listing_detail", id=listing_id)
+
+    if reason not in REPORT_REASONS:
+        flash("Report not sent. Choose a valid report reason.", "error")
+        return redirect(next_url)
+
+    if len(comment) > REPORT_COMMENT_MAX_LENGTH:
+        flash(f"Report not sent. Keep your comment under {REPORT_COMMENT_MAX_LENGTH} characters.", "error")
+        return redirect(next_url)
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM listings WHERE id = ?", (listing_id,))
+    listing = cursor.fetchone()
+
+    if listing is None:
+        conn.close()
+        flash("Report not sent. Listing not found.", "error")
+        return redirect(url_for("home"))
+
+    created_at = datetime.utcnow().isoformat(timespec="seconds")
+    cursor.execute(
+        """
+        INSERT INTO reports (listing_id, reporter_user_id, reason, comment, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (listing_id, user["id"], reason, comment, created_at),
+    )
+    conn.commit()
+    conn.close()
+
+    flash("Report sent.", "success")
+    return redirect(next_url)
+
 
 @app.route("/payments/boost/<int:listing_id>", methods=["POST"])
 @login_required
@@ -2034,6 +2183,176 @@ def campay_webhook():
     )
 
     return jsonify({"ok": True, "status": provider_status}), 200
+
+
+@app.route("/admin")
+@admin_required
+def admin_panel():
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT l.*, u.full_name as owner_name
+        FROM listings l
+        LEFT JOIN users u ON u.phone = l.owner_phone
+        ORDER BY l.id DESC
+        """
+    )
+    rows = cursor.fetchall()
+
+    cursor.execute(
+        """
+        SELECT u.id, u.full_name, u.phone, u.email, u.auth_provider, u.is_admin, u.is_active, u.created_at,
+               (SELECT COUNT(*) FROM listings l WHERE l.owner_phone = u.phone) AS listing_count
+        FROM users u
+        ORDER BY u.is_active ASC, u.id DESC
+        """
+    )
+    user_rows = cursor.fetchall()
+
+    cursor.execute(
+        """
+        SELECT r.id, r.listing_id, r.reporter_user_id, r.reason, r.comment, r.created_at,
+               l.title AS listing_title, l.category AS listing_category,
+               u.full_name AS reporter_name, u.phone AS reporter_phone, u.email AS reporter_email
+        FROM reports r
+        LEFT JOIN listings l ON l.id = r.listing_id
+        LEFT JOIN users u ON u.id = r.reporter_user_id
+        ORDER BY r.id DESC
+        """
+    )
+    report_rows = cursor.fetchall()
+
+    conn.close()
+
+    today = datetime.today().date()
+    listings = []
+    for row in rows:
+        leave_date = datetime.strptime(row["leave_date"], "%Y-%m-%d").date()
+        days_left = (leave_date - today).days
+        is_expired = days_left < 0
+        is_soon = 0 <= days_left <= 3
+
+        listings.append(
+            {
+                "id": row["id"],
+                "title": row["title"],
+                "price": row["price"],
+                "category": row["category"],
+                "phone": row["phone"],
+                "owner_phone": row["owner_phone"] or "",
+                "owner_name": row["owner_name"] or "Unknown",
+                "leave_date": row["leave_date"],
+                "description": row["description"] or "",
+                "image": row["image"],
+                "is_featured": row["is_featured"],
+                "view_count": row["view_count"],
+                "days_left": days_left,
+                "is_expired": is_expired,
+                "is_soon": is_soon,
+            }
+        )
+
+    users = []
+    for user_row in user_rows:
+        users.append(
+            {
+                "id": user_row["id"],
+                "full_name": user_row["full_name"] or "",
+                "phone": user_row["phone"] or "",
+                "email": user_row["email"] or "",
+                "auth_provider": user_row["auth_provider"] or "local",
+                "is_admin": bool(user_row["is_admin"] == 1),
+                "is_active": bool(user_row["is_active"] == 1),
+                "created_at": user_row["created_at"] or "",
+                "listing_count": user_row["listing_count"] or 0,
+            }
+        )
+
+    reports = []
+    for report_row in report_rows:
+        reports.append(
+            {
+                "id": report_row["id"],
+                "listing_id": report_row["listing_id"],
+                "reporter_user_id": report_row["reporter_user_id"],
+                "reason": report_row["reason"] or "Other",
+                "comment": report_row["comment"] or "",
+                "created_at": report_row["created_at"] or "",
+                "listing_title": report_row["listing_title"] or "",
+                "listing_category": report_row["listing_category"] or "",
+                "reporter_name": report_row["reporter_name"] or "Unknown",
+                "reporter_phone": report_row["reporter_phone"] or "",
+                "reporter_email": report_row["reporter_email"] or "",
+                "listing_exists": report_row["listing_title"] is not None,
+            }
+        )
+
+    return render_template("admin.html", listings=listings, users=users, reports=reports)
+
+
+@app.route("/admin/users/<int:user_id>/toggle-active", methods=["POST"])
+@admin_required
+def admin_toggle_user_active(user_id):
+    admin_user = current_user_record()
+    if admin_user and admin_user.get("id") == user_id:
+        flash("You cannot deactivate your own admin account.", "error")
+        return redirect(url_for("admin_panel"))
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, is_active, is_admin FROM users WHERE id = ?", (user_id,))
+    target_user = cursor.fetchone()
+
+    if target_user is None:
+        conn.close()
+        flash("User not found.", "error")
+        return redirect(url_for("admin_panel"))
+
+    new_status = 0 if target_user["is_active"] == 1 else 1
+    cursor.execute("UPDATE users SET is_active = ? WHERE id = ?", (new_status, user_id))
+    conn.commit()
+    conn.close()
+
+    if new_status == 1:
+        flash("User activated successfully.", "success")
+    else:
+        flash("User deactivated successfully.", "success")
+    return redirect(url_for("admin_panel"))
+
+
+@app.route("/admin/delete/<int:id>", methods=["POST"])
+@admin_required
+def admin_delete_listing(id):
+    raw_next = request.form.get("next") or ""
+    next_url = sanitize_next_url(raw_next or url_for("admin_panel"))
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT image FROM listings WHERE id = ?", (id,))
+    listing = cursor.fetchone()
+
+    if listing is None:
+        conn.close()
+        if raw_next:
+            flash("Listing not found.", "error")
+            return redirect(next_url)
+        return "Listing not found", 404
+
+    image_name = listing["image"]
+    if image_name:
+        image_path = os.path.join(app.config["UPLOAD_FOLDER"], image_name)
+        if os.path.exists(image_path):
+            os.remove(image_path)
+
+    cursor.execute("DELETE FROM listings WHERE id = ?", (id,))
+    conn.commit()
+    conn.close()
+
+    flash("Listing deleted successfully", "success")
+    return redirect(next_url)
+
 
 if __name__ == "__main__":
     app.run(debug=env_flag("FLASK_DEBUG"))

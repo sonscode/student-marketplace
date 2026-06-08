@@ -186,6 +186,56 @@
             margin: 0;
         }
 
+        .report-section {
+            display: grid;
+            gap: 10px;
+        }
+
+        .report-toggle {
+            width: fit-content;
+            list-style: none;
+            cursor: pointer;
+        }
+
+        .report-toggle::-webkit-details-marker {
+            display: none;
+        }
+
+        .report-form {
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 12px;
+            background: #fcfbf8;
+            display: grid;
+            gap: 10px;
+        }
+
+        .report-form label {
+            font-weight: 800;
+            font-size: 0.88rem;
+        }
+
+        .report-form select,
+        .report-form textarea {
+            width: 100%;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 10px 12px;
+            font: inherit;
+            background: #fff;
+        }
+
+        .report-form textarea {
+            min-height: 88px;
+            resize: vertical;
+        }
+
+        .report-login {
+            margin: 0;
+            color: var(--muted);
+            font-size: 0.92rem;
+        }
+
         .owner-link,
         .owner-btn {
             display: inline-flex;
@@ -355,6 +405,22 @@
             gap: 8px;
         }
 
+        .flash-stack.floating {
+            position: fixed;
+            top: 18px;
+            right: 18px;
+            z-index: 10000;
+            width: min(320px, calc(100vw - 36px));
+            margin: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+
+        .flash-stack.floating.is-hiding {
+            opacity: 0;
+            transform: translateY(-6px);
+        }
+
         .flash {
             border: 1px solid var(--line);
             border-radius: 12px;
@@ -362,6 +428,10 @@
             font-size: 0.9rem;
             background: #fff;
             margin: 0;
+        }
+
+        .flash-stack.floating .flash {
+            box-shadow: 0 14px 30px rgba(15, 23, 42, 0.14);
         }
 
         .flash.success {
@@ -445,6 +515,12 @@
         }
 
         @media (max-width: 700px) {
+            .flash-stack.floating {
+                left: 14px;
+                right: 14px;
+                width: auto;
+            }
+
             .grid {
                 grid-template-columns: 1fr;
             }
@@ -471,7 +547,7 @@
 
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-                <section class="flash-stack">
+                <section class="flash-stack floating" aria-live="polite">
                     {% for category, message in messages %}
                         <p class="flash {{ category }}">{{ message }}</p>
                     {% endfor %}
@@ -549,6 +625,32 @@
                 </section>
             {% endif %}
 
+            <section class="report-section">
+                <details>
+                    <summary class="owner-link report-toggle">Report Listing</summary>
+                    {% if is_logged_in %}
+                        <form class="report-form" method="POST" action="{{ url_for('report_listing', listing_id=item['id']) }}">
+                            <label for="report-reason">Reason</label>
+                            <select id="report-reason" name="reason" required>
+                                {% for reason in report_reasons %}
+                                    <option value="{{ reason }}">{{ reason }}</option>
+                                {% endfor %}
+                            </select>
+
+                            <label for="report-comment">Comment (optional)</label>
+                            <textarea id="report-comment" name="comment" maxlength="{{ report_comment_max_length }}" placeholder="Add a short note for the admin team."></textarea>
+
+                            <button class="owner-btn" type="submit">Submit Report</button>
+                        </form>
+                    {% else %}
+                        <div class="report-form">
+                            <p class="report-login">Log in to report this listing to the admin team.</p>
+                            <a class="owner-link" href="{{ url_for('login', next=url_for('listing_detail', id=item['id'])) }}">Log In to Report</a>
+                        </div>
+                    {% endif %}
+                </details>
+            </section>
+
             <a class="cta" href="https://wa.me/{{ item['phone'] }}" target="_blank">Contact on WhatsApp</a>
         </article>
 
@@ -608,6 +710,21 @@
             <img id="lightbox-image" class="lightbox-image" src="" alt="">
         </div>
     </div>
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            var flashStack = document.querySelector(".flash-stack.floating");
+            if (!flashStack) {
+                return;
+            }
+
+            window.setTimeout(function () {
+                flashStack.classList.add("is-hiding");
+                window.setTimeout(function () {
+                    flashStack.remove();
+                }, 220);
+            }, 4200);
+        });
+    </script>
     <script src="{{ url_for('static', filename='js/lightbox.js') }}"></script>
 </body>
 </html>

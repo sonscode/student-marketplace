@@ -266,6 +266,11 @@
             color: var(--featured);
         }
 
+        .badge.expired {
+            background: #e2e2e2;
+            color: #474747;
+        }
+
         .thumb {
             width: 92px;
             height: 92px;
@@ -526,18 +531,23 @@
 
         <section class="list">
             {% if listings %}
-                {% set sections = namespace(featured_shown=false, normal_shown=false) %}
+                {% set sections = namespace(featured_shown=false, active_shown=false, expired_shown=false) %}
                 {% for item in listings %}
-                    {% if item['is_featured'] == 1 and not sections.featured_shown %}
+                    {% if item['is_expired'] and not sections.expired_shown %}
+                        <div class="listing-section-heading">
+                            <h2>Expired Listings</h2>
+                        </div>
+                        {% set sections.expired_shown = true %}
+                    {% elif item['is_featured'] == 1 and not sections.featured_shown %}
                         <div class="listing-section-heading">
                             <h2>⭐ Featured Listings</h2>
                         </div>
                         {% set sections.featured_shown = true %}
-                    {% elif item['is_featured'] != 1 and not sections.normal_shown %}
+                    {% elif not item['is_expired'] and item['is_featured'] != 1 and not sections.active_shown %}
                         <div class="listing-section-heading">
-                            <h2>All Listings</h2>
+                            <h2>Active Listings</h2>
                         </div>
-                        {% set sections.normal_shown = true %}
+                        {% set sections.active_shown = true %}
                     {% endif %}
 
                     {% set detail_url = url_for('listing_detail', id=item['id'], category=request.args.get('category'), search=request.args.get('search')) %}
@@ -554,7 +564,9 @@
                                 <span>•</span>
                                 <span>{{ item['category'] | highlight(search) }}</span>
                                 <span>•</span>
-                                {% if 0 <= item['days_left'] <= 3 %}
+                                {% if item['is_expired'] %}
+                                    <span class="deadline expired">Expired {{ item['days_left'] * -1 }} day(s) ago</span>
+                                {% elif item['days_left'] <= 3 %}
                                     <span class="deadline soon">⚡ Leaving in {{ item['days_left'] }} day(s)</span>
                                 {% else %}
                                     <span class="deadline">Leaving in {{ item['days_left'] }} day(s)</span>
@@ -570,6 +582,9 @@
                             <div class="badges">
                                 {% if item['is_featured'] == 1 %}
                                     <span class="badge featured">🔥 Featured</span>
+                                {% endif %}
+                                {% if item['is_expired'] %}
+                                    <span class="badge expired">Expired</span>
                                 {% endif %}
                             </div>
 
