@@ -226,7 +226,6 @@ neobolt==1.7.17
 neotime==1.7.4
 netaddr==0.8.0
 netifaces==0.11.0
-network-traffic-alert @ file:///home/root004/Documents/net-taff/dist/network_traffic_alert-1.0.tar.gz#sha256=3f0553f1c68eb6d8ab4949e8f54bf32dbb2f3dcf065c6e573bdfef36dcaa3952
 networkx==2.8.8
 notify2==0.3.1
 notus-scanner==22.5.0
