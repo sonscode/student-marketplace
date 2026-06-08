@@ -135,6 +135,7 @@ graphql-core==2.2.1
 graphql-relay==2.0.1
 greenbone-feed-sync==23.7.0
 greenlet==2.0.2
+gunicorn==26.0.0
 gyp==0.1
 h11==0.14.0
 h2==4.1.0
