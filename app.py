@@ -1234,7 +1234,8 @@ def init_db():
     conn.close()
 
 
-init_db()
+if not env_flag("SKIP_APP_INIT_DB"):
+    init_db()
 
 
 @app.route("/")
