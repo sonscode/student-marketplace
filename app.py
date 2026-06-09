@@ -13,8 +13,6 @@ try:
     import psycopg2
 except ImportError:
     psycopg2 = None
-import cloudinary
-import cloudinary.uploader
 from flask import Flask, flash, jsonify, render_template, request, redirect, url_for, session
 from markupsafe import Markup
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -22,6 +20,20 @@ from werkzeug.utils import secure_filename
 from flask_dance.contrib.google import make_google_blueprint, google
 from dotenv import load_dotenv
 import services.campay as campay
+import cloudinary
+import cloudinary.uploader
+
+load_dotenv()
+
+if all(os.getenv(name) for name in ("CLOUDINARY_CLOUD_NAME", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET")):
+    cloudinary.config(
+        cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+        api_key=os.getenv("CLOUDINARY_API_KEY"),
+        api_secret=os.getenv("CLOUDINARY_API_SECRET"),
+        secure=True,
+    )
+else:
+    cloudinary.config(secure=True)
 
 # Exceptions for image file
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
@@ -35,23 +47,21 @@ def allowed_file(filename):
         in ALLOWED_EXTENSIONS
     )
 
-load_dotenv()
-
-if all(os.getenv(name) for name in ("CLOUDINARY_CLOUD_NAME", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET")):
-    cloudinary.config(
-        cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
-        api_key=os.getenv("CLOUDINARY_API_KEY"),
-        api_secret=os.getenv("CLOUDINARY_API_SECRET"),
-        secure=True,
-    )
-elif os.getenv("CLOUDINARY_URL"):
-    cloudinary.config(secure=True)
-
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 
 
 def env_flag(name):
     return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def running_on_render():
+    return env_flag("RENDER") or any(
+        os.getenv(name)
+        for name in ("RENDER_SERVICE_ID", "RENDER_EXTERNAL_URL", "RENDER_INSTANCE_ID")
+    )
+
+
+USE_POSTGRES = bool(DATABASE_URL and not env_flag("USE_SQLITE") and (running_on_render() or env_flag("USE_POSTGRES")))
 
 
 if env_flag("OAUTHLIB_INSECURE_TRANSPORT"):
@@ -61,6 +71,9 @@ if env_flag("OAUTHLIB_INSECURE_TRANSPORT"):
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret-change-this")
 app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024
+SQLITE_DATABASE_PATH = os.getenv("SQLITE_DATABASE_PATH", os.path.join(app.root_path, "database.db")).strip()
+if not SQLITE_DATABASE_PATH:
+    SQLITE_DATABASE_PATH = os.path.join(app.root_path, "database.db")
 app.config["GOOGLE_OAUTH_CLIENT_ID"] = (
     os.getenv("GOOGLE_OAUTH_CLIENT_ID")
     or os.getenv("GOOGLE_CLIENT_ID")
@@ -219,12 +232,12 @@ def normalize_database_url(database_url):
 
 
 def get_db():
-    if DATABASE_URL:
+    if USE_POSTGRES:
         if psycopg2 is None:
             raise RuntimeError("DATABASE_URL is set but psycopg2 is not installed.")
         return PostgresConnection(psycopg2.connect(normalize_database_url(DATABASE_URL)))
 
-    conn = sqlite3.connect("database.db")
+    conn = sqlite3.connect(SQLITE_DATABASE_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -1078,7 +1091,7 @@ def init_postgres_db():
 
 # creating table
 def init_db():
-    if DATABASE_URL:
+    if USE_POSTGRES:
         init_postgres_db()
         return
 
@@ -1268,7 +1281,17 @@ def init_db():
     conn.close()
 
 
-if not env_flag("SKIP_APP_INIT_DB"):
+def should_init_database():
+    if env_flag("SKIP_APP_INIT_DB"):
+        return False
+    if USE_POSTGRES:
+        return True
+    if not os.path.exists(SQLITE_DATABASE_PATH):
+        return True
+    return env_flag("INIT_LOCAL_DB")
+
+
+if should_init_database():
     init_db()
 
 
@@ -1817,7 +1840,7 @@ def delete_listing(id):
         conn.close()
         return "Not allowed", 403
 
-    cursor.execute("SELECT image FROM listings WHERE id = ? AND owner_phone = ?", (id, owner_phone))
+    cursor.execute("SELECT id FROM listings WHERE id = ? AND owner_phone = ?", (id, owner_phone))
     listing = cursor.fetchone()
 
     if listing is None:
@@ -2577,7 +2600,7 @@ def admin_delete_listing(id):
     conn = get_db()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT image FROM listings WHERE id = ?", (id,))
+    cursor.execute("SELECT id FROM listings WHERE id = ?", (id,))
     listing = cursor.fetchone()
 
     if listing is None:
