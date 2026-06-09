@@ -13,6 +13,8 @@ try:
     import psycopg2
 except ImportError:
     psycopg2 = None
+import cloudinary
+import cloudinary.uploader
 from flask import Flask, flash, jsonify, render_template, request, redirect, url_for, session
 from markupsafe import Markup
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -34,6 +36,16 @@ def allowed_file(filename):
     )
 
 load_dotenv()
+
+if all(os.getenv(name) for name in ("CLOUDINARY_CLOUD_NAME", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET")):
+    cloudinary.config(
+        cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+        api_key=os.getenv("CLOUDINARY_API_KEY"),
+        api_secret=os.getenv("CLOUDINARY_API_SECRET"),
+        secure=True,
+    )
+elif os.getenv("CLOUDINARY_URL"):
+    cloudinary.config(secure=True)
 
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 
@@ -103,9 +115,6 @@ def highlight(text, search):
     return Markup(highlighted)
 
 
-UPLOAD_FOLDER = os.path.join(app.root_path, "static", "uploads")
-app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 POSTGRES_SCHEMA_FILE = os.path.join(app.root_path, "postgres_schema.sql")
 POSTGRES_TABLES = ("users", "listings", "payments", "reports")
 
@@ -280,6 +289,30 @@ def sanitize_next_url(next_url):
     if not next_url or not next_url.startswith("/") or next_url.startswith("//"):
         return url_for("home")
     return next_url
+
+
+def listing_image_url(image_value):
+    image_value = (image_value or "").strip()
+    if not image_value:
+        return ""
+    if image_value.startswith(("http://", "https://")):
+        return image_value
+    return url_for("static", filename=f"uploads/{image_value}")
+
+
+def upload_listing_image(image_file):
+    upload_result = cloudinary.uploader.upload(
+        image_file,
+        folder="listings",
+        resource_type="image",
+        use_filename=True,
+        unique_filename=True,
+        overwrite=False,
+    )
+    secure_url = upload_result.get("secure_url")
+    if not secure_url:
+        raise RuntimeError("Cloudinary upload did not return secure_url.")
+    return secure_url
 
 
 def env_int(name, default):
@@ -525,6 +558,7 @@ def inject_auth():
         "current_user": user,
         "is_logged_in": user is not None,
         "google_oauth_enabled": GOOGLE_OAUTH_ENABLED,
+        "listing_image_url": listing_image_url,
     }
 
 
@@ -1753,13 +1787,17 @@ def add_listing():
     price = validated["price"]
     phone = validated["phone"]
     description = validated["description"]
-    filename = str(uuid.uuid4()) + "_" + safe_name
-    image.save(os.path.join(app.config["UPLOAD_FOLDER"], filename))
+    try:
+        image_url = upload_listing_image(image)
+    except Exception:
+        app.logger.exception("Cloudinary upload failed for listing image.")
+        return render_create_errors(["Image upload failed. Please try again."])
+
     is_featured = 0
 
     cursor.execute(
         "INSERT INTO listings (title, price, category, phone, owner_phone, leave_date, description, image, is_featured) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (title, price, category, phone, owner_phone, leave_date, description, filename, is_featured),
+        (title, price, category, phone, owner_phone, leave_date, description, image_url, is_featured),
     )
 
     conn.commit()
@@ -1785,12 +1823,6 @@ def delete_listing(id):
     if listing is None:
         conn.close()
         return "Listing not found or not allowed", 404
-
-    image_name = listing["image"]
-    if image_name:
-        image_path = os.path.join(app.config["UPLOAD_FOLDER"], image_name)
-        if os.path.exists(image_path):
-            os.remove(image_path)
 
     cursor.execute("DELETE FROM listings WHERE id = ? AND owner_phone = ?", (id, owner_phone))
     conn.commit()
@@ -1892,26 +1924,24 @@ def update_listing(id):
         return render_edit_errors(["Leaving date is invalid."])
 
     image = request.files.get("image")
-    image_filename = current_image
+    image_url = current_image
 
     if image and image.filename:
         safe_name = secure_filename(image.filename)
         if safe_name:
-            image_filename = str(uuid.uuid4()) + "_" + safe_name
             if not allowed_file(image.filename):
                 return render_edit_errors(["Invalid image format. Use PNG, JPG, JPEG, or WEBP."])
-            image.save(os.path.join(app.config["UPLOAD_FOLDER"], image_filename))
-
-            if current_image:
-                old_image_path = os.path.join(app.config["UPLOAD_FOLDER"], current_image)
-                if os.path.exists(old_image_path):
-                    os.remove(old_image_path)
+            try:
+                image_url = upload_listing_image(image)
+            except Exception:
+                app.logger.exception("Cloudinary upload failed for listing image.")
+                return render_edit_errors(["Image upload failed. Please try again."])
 
     is_featured = 1 if current_listing["is_featured"] == 1 else 0
 
     cursor.execute(
         "UPDATE listings SET title = ?, price = ?, category = ?, phone = ?, leave_date = ?, description = ?, image = ?, is_featured = ? WHERE id = ? AND owner_phone = ?",
-        (title, price, category, phone, leave_date, description, image_filename, is_featured, id, owner_phone),
+        (title, price, category, phone, leave_date, description, image_url, is_featured, id, owner_phone),
     )
     conn.commit()
     conn.close()
@@ -2557,12 +2587,6 @@ def admin_delete_listing(id):
             return redirect(next_url)
         return "Listing not found", 404
 
-    image_name = listing["image"]
-    if image_name:
-        image_path = os.path.join(app.config["UPLOAD_FOLDER"], image_name)
-        if os.path.exists(image_path):
-            os.remove(image_path)
-
     cursor.execute("DELETE FROM listings WHERE id = ?", (id,))
     conn.commit()
     conn.close()
@@ -2649,8 +2673,8 @@ def admin_deactivate_all_users():
 def admin_delete_all_users():
     """Hard-delete every non-admin user along with their listings, payments and reports.
 
-    This is destructive: removes user rows, their listings (and image files),
-    their payment records, and reports they filed or that target their listings.
+    This is destructive: removes user rows, their listings, their payment records,
+    and reports they filed or that target their listings.
     Admin accounts are always preserved, and you cannot delete your own account.
     """
     if not _confirm_token_matches(request.form.get("confirm")):
@@ -2686,10 +2710,8 @@ def admin_delete_all_users():
 
     placeholders = ",".join("?" for _ in victim_ids)
 
-    # Collect listings + their image filenames before we nuke them, so we can
-    # clean up the uploads folder afterwards.
     cursor.execute(
-        f"SELECT id, image FROM listings WHERE owner_phone IN ({','.join('?' for _ in victim_phones)})" if victim_phones else "SELECT id, image FROM listings WHERE 0",
+        f"SELECT id FROM listings WHERE owner_phone IN ({','.join('?' for _ in victim_phones)})" if victim_phones else "SELECT id FROM listings WHERE 0",
         victim_phones,
     )
     listing_rows = cursor.fetchall()
@@ -2721,18 +2743,6 @@ def admin_delete_all_users():
     )
     conn.commit()
 
-    # Best-effort cleanup of orphan image files. Failures here don't roll back the DB.
-    for row in listing_rows:
-        image_name = row["image"]
-        if not image_name:
-            continue
-        image_path = os.path.join(app.config["UPLOAD_FOLDER"], image_name)
-        try:
-            if os.path.exists(image_path):
-                os.remove(image_path)
-        except OSError:
-            app.logger.warning("Failed to remove orphan listing image %s", image_path)
-
     conn.close()
 
     flash(
@@ -2745,7 +2755,7 @@ def admin_delete_all_users():
 @app.route("/admin/listings/delete-all", methods=["POST"])
 @admin_required
 def admin_delete_all_listings():
-    """Hard-delete every listing and its image file. This is destructive."""
+    """Hard-delete every listing. This is destructive."""
     if not _confirm_token_matches(request.form.get("confirm")):
         flash("Bulk delete cancelled. Confirmation token missing.", "error")
         return redirect(url_for("admin_panel"))
@@ -2757,7 +2767,7 @@ def admin_delete_all_listings():
 
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, image FROM listings")
+    cursor.execute("SELECT id FROM listings")
     listing_rows = cursor.fetchall()
     listing_ids = [row["id"] for row in listing_rows]
 
@@ -2778,20 +2788,9 @@ def admin_delete_all_listings():
     cursor.execute("DELETE FROM listings")
     conn.commit()
 
-    for row in listing_rows:
-        image_name = row["image"]
-        if not image_name:
-            continue
-        image_path = os.path.join(app.config["UPLOAD_FOLDER"], image_name)
-        try:
-            if os.path.exists(image_path):
-                os.remove(image_path)
-        except OSError:
-            app.logger.warning("Failed to remove orphan listing image %s", image_path)
-
     conn.close()
 
-    flash(f"Deleted {len(listing_ids)} listing(s) and their image files.", "success")
+    flash(f"Deleted {len(listing_ids)} listing(s).", "success")
     return redirect(url_for("admin_panel"))
 
 

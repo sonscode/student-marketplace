@@ -602,8 +602,8 @@
                         </div>
 
                         {% if item['image'] %}
-                            <a class="thumb-link lightbox-trigger" href="{{ url_for('static', filename='uploads/' + item['image']) }}" title="Open full image">
-                                <img class="thumb" src="{{ url_for('static', filename='uploads/' + item['image']) }}" alt="{{ item['title'] }}">
+                            <a class="thumb-link lightbox-trigger" href="{{ listing_image_url(item['image']) }}" title="Open full image">
+                                <img class="thumb" src="{{ listing_image_url(item['image']) }}" alt="{{ item['title'] }}">
                             </a>
                         {% endif %}
                     </article>

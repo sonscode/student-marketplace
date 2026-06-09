@@ -565,8 +565,8 @@
             </div>
 
             {% if item['image'] %}
-                <a class="hero-link lightbox-trigger" href="{{ url_for('static', filename='uploads/' + item['image']) }}" title="Open full image">
-                    <img class="hero" src="{{ url_for('static', filename='uploads/' + item['image']) }}" alt="{{ item['title'] }}">
+                <a class="hero-link lightbox-trigger" href="{{ listing_image_url(item['image']) }}" title="Open full image">
+                    <img class="hero" src="{{ listing_image_url(item['image']) }}" alt="{{ item['title'] }}">
                 </a>
                 <p class="image-note">Click image to open full-size view.</p>
             {% endif %}
@@ -665,8 +665,8 @@
                     {% for related in related_items %}
                         <article class="related-card">
                             {% if related['image'] %}
-                                <a class="related-media-link lightbox-trigger" href="{{ url_for('static', filename='uploads/' + related['image']) }}" title="Open full image">
-                                    <img class="related-media" src="{{ url_for('static', filename='uploads/' + related['image']) }}" alt="{{ related['title'] }}">
+                                <a class="related-media-link lightbox-trigger" href="{{ listing_image_url(related['image']) }}" title="Open full image">
+                                    <img class="related-media" src="{{ listing_image_url(related['image']) }}" alt="{{ related['title'] }}">
                                 </a>
                             {% endif %}
 

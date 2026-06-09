@@ -315,7 +315,7 @@
                 {% if listing['image'] %}
                     <div class="field preview">
                         <label>Current Image</label>
-                        <img src="{{ url_for('static', filename='uploads/' + listing['image']) }}" alt="{{ listing['title'] }}">
+                        <img src="{{ listing_image_url(listing['image']) }}" alt="{{ listing['title'] }}">
                     </div>
                 {% endif %}
 
