@@ -2,6 +2,11 @@
 import os
 import sys
 
+from dotenv import load_dotenv
+load_dotenv()
+
+print("DATABASE_URL =", os.getenv("DATABASE_URL"))
+
 os.environ["SKIP_APP_INIT_DB"] = "1"
 
 from app import get_db
