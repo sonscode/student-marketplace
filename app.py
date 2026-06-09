@@ -7,7 +7,7 @@ import hashlib
 import ipaddress
 from datetime import datetime, timedelta
 from functools import wraps
-
+# Image upload failed. Please try again.
 import sqlite3
 try:
     import psycopg2
@@ -1812,10 +1812,11 @@ def add_listing():
     description = validated["description"]
     try:
         image_url = upload_listing_image(image)
-    except Exception:
-        app.logger.exception("Cloudinary upload failed for listing image.")
-        return render_create_errors(["Image upload failed. Please try again."])
-
+    except Exception as e:
+        # app.logger.exception("Cloudinary upload failed for listing image.")
+        # return render_create_errors(["Image upload failed. Please try again."])
+        print("CLOUDINARY ERROR:", e)
+        flash(f"Image upload failed: {e}")
     is_featured = 0
 
     cursor.execute(
