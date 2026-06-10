@@ -273,8 +273,11 @@ def get_transaction_status(transaction_uuid: str) -> dict[str, Any]:
 def verify_webhook_signature(payload: dict[str, Any], callback_secret: str) -> dict[str, Any]:
     """Verify the HMAC-SHA256 signature on a CamerPay webhook payload.
 
-    The message format is: transaction_uuid|invoice_id|status|amount
+    The message format is: uuid|invoice_id|status|amount
+    The 'uuid' field in the payload is the transaction identifier.
     The signature is in the 'signature' field, prefixed with 'sha256='.
+
+    Supports both 'uuid' and 'transaction_uuid' field names.
     """
     signature = str(payload.get("signature") or "").strip()
     if not callback_secret:
@@ -282,10 +285,15 @@ def verify_webhook_signature(payload: dict[str, Any], callback_secret: str) -> d
     if not signature:
         return {"ok": False, "error": "Signature missing in webhook payload."}
 
-    message = "|".join(
-        "" if payload.get(field) is None else str(payload.get(field)).strip()
-        for field in ("transaction_uuid", "invoice_id", "status", "amount")
-    )
+    # Determine the transaction UUID field (CamerPay sends 'uuid', but we support 'transaction_uuid' too)
+    transaction_uuid = str(payload.get("uuid") or payload.get("transaction_uuid") or "").strip()
+    invoice_id = str(payload.get("invoice_id") or "").strip()
+    status = str(payload.get("status") or "").strip()
+    # Amount may come as a decimal string like "10000.00" — strip the decimal for signature
+    raw_amount = str(payload.get("amount") or "").strip()
+    amount = raw_amount.split(".")[0] if "." in raw_amount else raw_amount
+
+    message = "|".join((transaction_uuid, invoice_id, status, amount))
     expected = hmac.new(
         callback_secret.encode("utf-8"),
         message.encode("utf-8"),

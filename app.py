@@ -2376,57 +2376,88 @@ def mock_payment_failure(reference_id):
 def camerpay_webhook():
     """Webhook endpoint for CamerPay payment status updates.
 
-    CamerPay sends POST with JSON body:
-    {
-        "transaction_uuid": "...",
-        "invoice_id": "...",
-        "status": "completed",
-        "amount": 5000,
-        "currency": "XAF",
-        "payment_method": "...",
-        "provider_tx_id": "...",
-        "paid_at": "...",
-        "signature": "sha256=..."
-    }
+    CamerPay sends POST with form-urlencoded or JSON body with fields:
+    - uuid (or transaction_uuid): CamerPay transaction ID
+    - invoice_id: our external reference (listing-{id}-payment-{id})
+    - status: completed / pending / failed / cancelled / expired
+    - amount: transaction amount (may include decimal, e.g. "10000.00")
+    - signature: HMAC-SHA256 of uuid|invoice_id|status|amount
 
-    Signature is HMAC-SHA256 of: transaction_uuid|invoice_id|status|amount
-    using CAMERPAY_CALLBACK_SECRET.
+    The signature is verified using CAMERPAY_CALLBACK_SECRET.
+    Test webhooks (test=1) are always accepted with HTTP 200.
     """
+    # Accept both JSON and form-urlencoded payloads
     payload = request.get_json(silent=True)
     if not isinstance(payload, dict) or not payload:
-        return jsonify({"ok": False, "message": "Invalid or missing JSON body"}), 400
+        payload = {key: value for key, value in request.values.items()}
 
-    transaction_uuid = (payload.get("transaction_uuid") or "").strip()
-    invoice_id = (payload.get("invoice_id") or "").strip()
-    raw_status = (payload.get("status") or "").strip()
+    app.logger.info(
+        "camerpay_webhook_received content_type=%s keys=%s",
+        request.content_type or "unknown",
+        sorted(payload.keys()),
+    )
+
+    if not payload:
+        app.logger.warning("camerpay_webhook_rejected: empty payload")
+        return jsonify({"ok": False, "message": "Empty payload"}), 400
+
+    # Support both 'uuid' and 'transaction_uuid' field names
+    transaction_uuid = str(payload.get("uuid") or payload.get("transaction_uuid") or "").strip()
+    invoice_id = str(payload.get("invoice_id") or "").strip()
+    raw_status = str(payload.get("status") or "").strip()
+    is_test = str(payload.get("test") or "").strip() == "1"
 
     log_payment_event(
         "webhook_received",
         provider_ref=transaction_uuid,
         invoice_id=invoice_id,
         status=raw_status,
-        payload_keys=sorted(payload.keys()),
+        test=is_test,
     )
 
     if not transaction_uuid or not raw_status:
-        return jsonify({"ok": False, "message": "Missing transaction_uuid or status"}), 400
+        missing = []
+        if not transaction_uuid:
+            missing.append("uuid/transaction_uuid")
+        if not raw_status:
+            missing.append("status")
+        app.logger.warning(
+            "camerpay_webhook_rejected: missing fields=%s keys=%s",
+            ",".join(missing),
+            sorted(payload.keys()),
+        )
+        return jsonify({"ok": False, "message": f"Missing required fields: {', '.join(missing)}"}), 400
 
-    # Signature verification
+    # Test webhooks: always accept
+    if is_test:
+        app.logger.info(
+            "camerpay_webhook_test_accepted uuid=%s status=%s",
+            transaction_uuid,
+            raw_status,
+        )
+        return jsonify({"ok": True, "message": "Test webhook accepted"}), 200
+
+    # Signature verification (skip for test webhooks)
     callback_secret = (os.getenv("CAMERPAY_CALLBACK_SECRET") or "").strip()
     if callback_secret:
         verification_result = campay.verify_webhook_signature(payload, callback_secret)
         if not verification_result.get("ok"):
             app.logger.warning(
-                "camerpay_webhook_signature_invalid transaction_uuid=%s error=%s",
+                "camerpay_webhook_signature_invalid uuid=%s invoice_id=%s error=%s",
                 transaction_uuid,
+                invoice_id,
                 verification_result.get("error"),
             )
             return jsonify({"ok": False, "message": verification_result.get("error", "Invalid signature")}), 403
 
     # Map CamerPay status to internal status
-    # CamerPay statuses: pending, completed, failed, cancelled, expired
     provider_status = resolve_internal_payment_status(raw_status)
     if not provider_status:
+        app.logger.warning(
+            "camerpay_webhook_unrecognized_status uuid=%s status=%s",
+            transaction_uuid,
+            raw_status,
+        )
         provider_status = PAYMENT_STATUS_PENDING
 
     conn = get_db()
@@ -2437,10 +2468,10 @@ def camerpay_webhook():
 
     if payment is None:
         conn.close()
-        log_payment_event(
-            "webhook_unmatched",
-            provider_ref=transaction_uuid,
-            invoice_id=invoice_id,
+        app.logger.info(
+            "camerpay_webhook_unmatched uuid=%s invoice_id=%s",
+            transaction_uuid,
+            invoice_id,
         )
         return jsonify({"ok": True, "message": "Webhook received, payment not found"}), 200
 
