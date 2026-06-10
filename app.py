@@ -19,9 +19,9 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 from flask_dance.contrib.google import make_google_blueprint, google
 from dotenv import load_dotenv
-import services.campay as campay
 import cloudinary
 import cloudinary.uploader
+from services import camerpay as campay
 
 load_dotenv()
 
@@ -353,17 +353,7 @@ REPORT_COMMENT_MAX_LENGTH = 500
 # Default TTL: 120s (2 minutes) unless overridden by env.
 PAYMENT_PENDING_TTL_SECONDS = env_int("PAYMENT_PENDING_TTL_SECONDS", 120)
 
-# CamPay sandbox enforces a low collect limit (ER201). Override via env if needed.
-CAMPAY_DEMO_MAX_BOOST_XAF = env_int("CAMPAY_DEMO_MAX_BOOST_XAF", 25)
-
-
-def campay_base_url_is_demo() -> bool:
-    return "demo.campay.net" in (os.getenv("CAMPAY_BASE_URL") or "").lower()
-
-
 def effective_boost_amount() -> int:
-    if campay_base_url_is_demo():
-        return min(BOOST_LISTING_AMOUNT, CAMPAY_DEMO_MAX_BOOST_XAF)
     return BOOST_LISTING_AMOUNT
 
 
@@ -2194,19 +2184,15 @@ def initiate_listing_boost(listing_id):
         flash(payment_provider_feedback(campay_result, "Payment request could not be sent."), "error")
         return redirect(next_url)
 
-    ussd_code = ""
-    if isinstance(campay_result.get("data"), dict):
-        ussd_code = str(campay_result["data"].get("ussd_code") or "").strip()
+    pay_url = (campay_result.get("pay_url") or "").strip()
 
     conn.commit()
     conn.close()
-    if ussd_code:
-        flash(
-            f"Request sent. Phone prompt should appear automatically. If needed, dial {ussd_code}.",
-            "success",
-        )
-    else:
-        flash("Request sent. Approve the prompt on your phone, then verify payment.", "success")
+    if pay_url:
+        flash("Redirecting you to CamerPay to complete payment.", "success")
+        return redirect(pay_url)
+
+    flash("Payment initiated. Use the verification page to check payment status.", "success")
     return redirect(
         url_for(
             "verify_listing_payment",
@@ -2386,32 +2372,59 @@ def mock_payment_failure(reference_id):
     return redirect(next_url)
 
 
-@app.route("/payments/campay/webhook", methods=["GET", "POST"])
-def campay_webhook():
-    payload = request.get_json(silent=True) if request.method == "POST" else None
-    if not isinstance(payload, dict) or not payload:
-        payload = {key: value for key, value in request.values.items()}
+@app.route("/payments/camerpay/webhook", methods=["POST"])
+def camerpay_webhook():
+    """Webhook endpoint for CamerPay payment status updates.
 
-    payment_reference = (payload.get("reference") or "").strip()
+    CamerPay sends POST with JSON body:
+    {
+        "transaction_uuid": "...",
+        "invoice_id": "...",
+        "status": "completed",
+        "amount": 5000,
+        "currency": "XAF",
+        "payment_method": "...",
+        "provider_tx_id": "...",
+        "paid_at": "...",
+        "signature": "sha256=..."
+    }
+
+    Signature is HMAC-SHA256 of: transaction_uuid|invoice_id|status|amount
+    using CAMERPAY_CALLBACK_SECRET.
+    """
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or not payload:
+        return jsonify({"ok": False, "message": "Invalid or missing JSON body"}), 400
+
+    transaction_uuid = (payload.get("transaction_uuid") or "").strip()
+    invoice_id = (payload.get("invoice_id") or "").strip()
     raw_status = (payload.get("status") or "").strip()
-    external_reference = (payload.get("external_reference") or "").strip()
+
     log_payment_event(
         "webhook_received",
-        provider_ref=payment_reference,
+        provider_ref=transaction_uuid,
+        invoice_id=invoice_id,
         status=raw_status,
-        external_reference=external_reference,
         payload_keys=sorted(payload.keys()),
     )
 
-    if not payment_reference or not raw_status:
-        return jsonify({"ok": False, "message": "Missing reference or status"}), 400
+    if not transaction_uuid or not raw_status:
+        return jsonify({"ok": False, "message": "Missing transaction_uuid or status"}), 400
 
-    webhook_key = (os.getenv("CAMPAY_WEBHOOK_KEY") or "").strip()
-    if webhook_key:
-        verification_result = campay.verify_webhook_signature(payload, webhook_key)
+    # Signature verification
+    callback_secret = (os.getenv("CAMERPAY_CALLBACK_SECRET") or "").strip()
+    if callback_secret:
+        verification_result = campay.verify_webhook_signature(payload, callback_secret)
         if not verification_result.get("ok"):
+            app.logger.warning(
+                "camerpay_webhook_signature_invalid transaction_uuid=%s error=%s",
+                transaction_uuid,
+                verification_result.get("error"),
+            )
             return jsonify({"ok": False, "message": verification_result.get("error", "Invalid signature")}), 403
 
+    # Map CamerPay status to internal status
+    # CamerPay statuses: pending, completed, failed, cancelled, expired
     provider_status = resolve_internal_payment_status(raw_status)
     if not provider_status:
         provider_status = PAYMENT_STATUS_PENDING
@@ -2419,15 +2432,22 @@ def campay_webhook():
     conn = get_db()
     cursor = conn.cursor()
 
-    payment = find_payment_for_webhook(cursor, payment_reference, external_reference)
+    # Find payment by transaction_uuid (provider_reference) or invoice_id (external_reference)
+    payment = find_payment_for_webhook(cursor, transaction_uuid, invoice_id)
 
     if payment is None:
         conn.close()
-        log_payment_event("webhook_unmatched", provider_ref=payment_reference, external_reference=external_reference)
+        log_payment_event(
+            "webhook_unmatched",
+            provider_ref=transaction_uuid,
+            invoice_id=invoice_id,
+        )
         return jsonify({"ok": True, "message": "Webhook received, payment not found"}), 200
 
-    remote_phone = normalize_phone(payload.get("phone_number") or payload.get("from"))
+    # Update phone if provided in webhook
+    remote_phone = normalize_phone(payload.get("customer_phone") or payload.get("phone_number") or "")
     update_payment_phone_record(cursor, get_payment_local_reference(payment), remote_phone)
+
     previous_status = resolve_internal_payment_status(payment["status"]) or PAYMENT_STATUS_PENDING
 
     if provider_status == PAYMENT_STATUS_SUCCESSFUL:
@@ -2448,7 +2468,7 @@ def campay_webhook():
         payment_id=payment["id"],
         listing_id=payment["listing_id"],
         local_ref=get_payment_local_reference(payment),
-        provider_ref=payment_reference,
+        provider_ref=transaction_uuid,
         previous_status=previous_status,
         new_status=provider_status,
     )
