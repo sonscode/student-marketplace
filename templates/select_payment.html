@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Select Payment Method | Azison</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&family=Sora:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #f7f4ec;
+            --card: #dce8f5;
+            --text: #1b1d20;
+            --muted: #60656f;
+            --line: #d0d6e2;
+            --brand: #d0562d;
+            --success: #1b5a32;
+            --success-bg: #edf9f1;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: "Manrope", "Segoe UI", sans-serif;
+            color: var(--text);
+            background: radial-gradient(circle at 10% 0%, #fff2d7 0, transparent 28%), radial-gradient(circle at 90% 10%, #ffe7dd 0, transparent 24%), var(--bg);
+            min-height: 100vh;
+        }
+
+        .page {
+            width: min(600px, 92vw);
+            margin: 34px auto 50px;
+        }
+
+        .brand {
+            font-family: "Sora", "Manrope", sans-serif;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+        }
+
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+
+        .back {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            text-decoration: none;
+            color: #2f3641;
+            border: 1px solid var(--line);
+            background: #fff;
+            padding: 9px 12px;
+            border-radius: 10px;
+            font-weight: 700;
+        }
+
+        .card {
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            background: var(--card);
+            padding: 18px;
+            display: grid;
+            gap: 16px;
+            animation: rise 0.24s ease both;
+        }
+
+        .title {
+            margin: 0;
+            font-size: clamp(1.2rem, 2.4vw, 1.6rem);
+            letter-spacing: -0.02em;
+            line-height: 1.2;
+        }
+
+        .amount {
+            font-size: 1.6rem;
+            font-weight: 800;
+            color: var(--brand);
+        }
+
+        .payment-options {
+            display: grid;
+            gap: 12px;
+        }
+
+        .payment-option {
+            border: 2px solid var(--line);
+            border-radius: 14px;
+            padding: 14px 16px;
+            background: #fff;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            cursor: pointer;
+            transition: border-color 0.15s ease;
+        }
+
+        .payment-option:hover {
+            border-color: var(--brand);
+        }
+
+        .payment-option input[type="radio"] {
+            width: 20px;
+            height: 20px;
+            accent-color: var(--brand);
+            flex-shrink: 0;
+        }
+
+        .payment-option.selected {
+            border-color: var(--brand);
+            background: #fff8f5;
+        }
+
+        .payment-label {
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+
+        .payment-desc {
+            margin: 4px 0 0;
+            color: var(--muted);
+            font-size: 0.88rem;
+        }
+
+        .payment-icon {
+            font-size: 1.8rem;
+            flex-shrink: 0;
+            width: 40px;
+            text-align: center;
+        }
+
+        .submit-btn {
+            border: 0;
+            border-radius: 12px;
+            padding: 12px 14px;
+            text-decoration: none;
+            color: white;
+            font-weight: 700;
+            font-size: 1.05rem;
+            background: linear-gradient(135deg, #ea6f45, var(--brand));
+            cursor: pointer;
+            text-align: center;
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .flash-stack {
+            margin-bottom: 14px;
+            display: grid;
+            gap: 8px;
+        }
+
+        .flash {
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 10px 12px;
+            font-size: 0.9rem;
+            background: #fff;
+            margin: 0;
+        }
+
+        .flash.info {
+            border-color: #e8dbaf;
+            background: #fff9ea;
+            color: #6f4e15;
+        }
+
+        @keyframes rise {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <main class="page">
+        <div class="topbar">
+            <h1 style="margin:0;font-size:clamp(1.2rem,2vw,1.5rem)"><span class="brand">AZISON</span> <span class="site-title">BOOST LISTING</span></h1>
+            <a class="back" href="{{ url_for('listing_detail', id=listing_id) }}">⬅ Back</a>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <section class="flash-stack" aria-live="polite">
+                    {% for category, message in messages %}
+                        <p class="flash {{ category }}">{{ message }}</p>
+                    {% endfor %}
+                </section>
+            {% endif %}
+        {% endwith %}
+
+        <article class="card">
+            <h1 class="title">Choose Payment Method</h1>
+            <p>Boost your listing for <span class="amount">{{ boost_amount }} XAF</span></p>
+
+            <form method="POST" action="{{ url_for('initiate_listing_boost', listing_id=listing_id) }}" onsubmit="return validatePayment(event)">
+                <input type="hidden" name="next" value="{{ next }}">
+
+                <div class="payment-options">
+                    <label class="payment-option" onclick="selectPayment(this, 'mtn_momo')">
+                        <input type="radio" name="payment_method" value="mtn_momo" required>
+                        <span class="payment-icon">📱</span>
+                        <div>
+                            <div class="payment-label">MTN MoMo</div>
+                            <p class="payment-desc">Pay with MTN Mobile Money. A payment prompt will be sent to your phone.</p>
+                        </div>
+                    </label>
+
+                    <label class="payment-option" onclick="selectPayment(this, 'orange_money')">
+                        <input type="radio" name="payment_method" value="orange_money" required>
+                        <span class="payment-icon">🍊</span>
+                        <div>
+                            <div class="payment-label">Orange Money</div>
+                            <p class="payment-desc">Pay with Orange Money. A payment prompt will be sent to your phone.</p>
+                        </div>
+                    </label>
+
+                    <label class="payment-option" onclick="selectPayment(this, '')">
+                        <input type="radio" name="payment_method" value="">
+                        <span class="payment-icon">💳</span>
+                        <div>
+                            <div class="payment-label">Other Methods</div>
+                            <p class="payment-desc">Pay with card, bank transfer, or other payment methods via CamerPay checkout.</p>
+                        </div>
+                    </label>
+                </div>
+
+                <button class="submit-btn" type="submit" id="boost-submit" disabled>Proceed to Payment</button>
+            </form>
+        </article>
+    </main>
+
+    <script>
+        function selectPayment(option, value) {
+            document.querySelectorAll('.payment-option').forEach(function(el) {
+                el.classList.remove('selected');
+            });
+            option.classList.add('selected');
+            option.querySelector('input[type="radio"]').checked = true;
+            document.getElementById('boost-submit').disabled = false;
+        }
+
+        function validatePayment(e) {
+            var selected = document.querySelector('input[name="payment_method"]:checked');
+            if (!selected) {
+                alert('Please select a payment method.');
+                e.preventDefault();
+                return false;
+            }
+            return true;
+        }
+    </script>
+</body>
+</html>

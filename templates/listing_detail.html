@@ -611,10 +611,7 @@
                     {% if item['is_featured'] == 1 %}
                         <span class="owner-link">Featured Active</span>
                     {% else %}
-                        <form method="POST" action="{{ url_for('initiate_listing_boost', listing_id=item['id']) }}">
-                            <input type="hidden" name="next" value="{{ url_for('listing_detail', id=item['id']) }}">
-                            <button class="owner-btn" type="submit">Boost ({{ boost_amount }} XAF)</button>
-                        </form>
+                        <a class="owner-link" href="{{ url_for('select_boost_payment', listing_id=item['id']) }}">Boost ({{ boost_amount }} XAF)</a>
                     {% endif %}
                     {% if pending_payment_reference %}
                         <a class="owner-link" href="{{ url_for('verify_listing_payment', reference_id=pending_payment_reference, next=url_for('listing_detail', id=item['id'])) }}">Check Payment</a>

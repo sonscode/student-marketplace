@@ -76,22 +76,31 @@ def initiate_payment(
     description: str = "Boost Listing",
     customer_phone: str = "",
     customer_id: str = "",
+    payment_method: str = "",
 ) -> dict[str, Any]:
     """Initiate a payment via the CamerPay API.
 
     POST /payment/initiate
     Payload fields per CamerPay docs:
-      merchant_invoice_id  (string, required)
-      amount               (number, required) — in XAF
-      currency             (string, default "XAF")
-      description          (string)
-      merchant_callback_url (string)
-      merchant_return_url   (string)
-      source               (string, default "api")
-      customer_phone       (string)
-      customer_id          (string)
+      merchant_invoice_id   (string, required)
+      amount                (number, required) — in XAF
+      currency              (string, default "XAF")
+      description           (string)
+      merchant_callback_url  (string)
+      merchant_return_url    (string)
+      source                (string, default "api")
+      customer_phone        (string)
+      customer_id           (string)
+      payment_method        (string) — "mtn_momo" or "orange_money" for direct phone prompt
 
-    Returns transaction_uuid and pay_url from CamerPay.
+    When payment_method is set ("mtn_momo" or "orange_money"):
+      - The API sends a direct payment prompt to the user's phone.
+      - We do NOT redirect to the CamerPay checkout page.
+      - The user approves on their phone and the webhook confirms.
+
+    When payment_method is empty:
+      - The API returns a pay_url for the CamerPay checkout page.
+      - The user can choose card, bank, or other methods on that page.
     """
     if not _api_token():
         return _missing_token_result()
@@ -115,6 +124,8 @@ def initiate_payment(
         payload["customer_phone"] = str(customer_phone)
     if customer_id:
         payload["customer_id"] = str(customer_id)
+    if payment_method:
+        payload["payment_method"] = str(payment_method)
 
     logger.error(
         "camerpay_initiate_request details=%s",
@@ -122,6 +133,7 @@ def initiate_payment(
             "invoice_id": invoice_id,
             "url": request_url,
             "amount": amount,
+            "payment_method": payment_method,
             "phone_masked": f"***{str(customer_phone)[-4:]}" if customer_phone else "",
             "has_callback_url": bool(callback_url),
             "auth_token_preview": token_preview,
@@ -170,7 +182,7 @@ def initiate_payment(
         status = str(data.get("status") or "").strip()
         success = data.get("success") is True
 
-    ok = bool(response.ok and success and transaction_uuid and pay_url)
+    ok = bool(response.ok and success)
     error = ""
     if not ok:
         if isinstance(data, dict):
@@ -195,6 +207,7 @@ def initiate_payment(
             "transaction_uuid": transaction_uuid,
             "pay_url_provided": bool(pay_url),
             "provider_status": status,
+            "is_direct_prompt": bool(payment_method),
             "error": error,
             "response_headers": dict(response.headers),
             "response_body_full": str(data)[:2000] if data else response.text[:2000],
@@ -220,11 +233,13 @@ def request_collect(
     external_reference: str,
     external_user: str = "",
     description: str = "Boost Listing",
+    payment_method: str = "",
 ) -> dict[str, Any]:
     """Initiate a collect (payment request) via CamerPay.
 
     Wraps initiate_payment with the expected interface used by app.py.
-    The caller should redirect the user to pay_url on success.
+    The caller should redirect the user to pay_url on success
+    (unless a direct payment_method like mtn_momo/orange_money was used).
     """
     result = initiate_payment(
         amount=amount,
@@ -233,6 +248,7 @@ def request_collect(
         description=description,
         customer_phone=phone,
         customer_id=external_user,
+        payment_method=payment_method,
     )
 
     # Preserve the ussd_code from raw data if present (for backward compat)
@@ -339,11 +355,9 @@ def verify_webhook_signature(payload: dict[str, Any], callback_secret: str) -> d
     if not signature:
         return {"ok": False, "error": "Signature missing in webhook payload."}
 
-    # Determine the transaction UUID field (CamerPay sends 'uuid', but we support 'transaction_uuid' too)
     transaction_uuid = str(payload.get("uuid") or payload.get("transaction_uuid") or "").strip()
     invoice_id = str(payload.get("invoice_id") or "").strip()
     status = str(payload.get("status") or "").strip()
-    # Amount may come as a decimal string like "10000.00" — strip the decimal for signature
     raw_amount = str(payload.get("amount") or "").strip()
     amount = raw_amount.split(".")[0] if "." in raw_amount else raw_amount
 

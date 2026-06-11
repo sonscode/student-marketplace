@@ -2091,6 +2091,53 @@ def report_listing(listing_id):
     return redirect(next_url)
 
 
+@app.route("/payments/boost/<int:listing_id>/select", methods=["GET"])
+@login_required
+def select_boost_payment(listing_id):
+    """Show payment method selection page."""
+    conn = get_db()
+    cursor = conn.cursor()
+    owner_phone = get_authenticated_owner_phone()
+    default_next = url_for("listing_detail", id=listing_id)
+    next_url = payment_next_url(default_next)
+
+    if not owner_phone:
+        conn.close()
+        flash("You are not allowed to boost this listing.", "error")
+        return redirect(next_url)
+
+    listing = get_listing_for_owner(cursor, listing_id, owner_phone)
+    if listing is None:
+        conn.close()
+        flash("Listing not found or not allowed.", "error")
+        return redirect(next_url)
+
+    if listing["is_featured"] == 1:
+        conn.close()
+        flash("This listing is already featured.", "info")
+        return redirect(next_url)
+
+    existing_pending_payment = get_pending_payment_for_listing(cursor, listing_id)
+    if existing_pending_payment is not None:
+        conn.close()
+        flash("A payment is already pending for this listing. Confirm it to activate featured status.", "info")
+        return redirect(
+            url_for(
+                "verify_listing_payment",
+                reference_id=existing_pending_payment["reference_id"],
+                next=next_url,
+            )
+        )
+
+    conn.close()
+    return render_template(
+        "select_payment.html",
+        listing_id=listing_id,
+        boost_amount=effective_boost_amount(),
+        next=next_url,
+    )
+
+
 @app.route("/payments/boost/<int:listing_id>", methods=["POST"])
 @login_required
 def initiate_listing_boost(listing_id):
@@ -2149,12 +2196,16 @@ def initiate_listing_boost(listing_id):
         external_reference=external_reference,
     )
 
+    # Read payment_method from the form selection
+    payment_method = (request.form.get("payment_method") or "").strip()
+
     campay_result = campay.request_collect(
         phone=collect_phone,
         amount=charge_amount,
         external_reference=external_reference,
         external_user=str(get_session_user_id() or ""),
         description="Boost Listing",
+        payment_method=payment_method,
     )
 
     provider_reference = (campay_result.get("reference") or "").strip()
