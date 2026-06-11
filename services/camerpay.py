@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_BASE_URL = "https://camerpay.biz/api"
 HTTP_TIMEOUT_SECONDS = 20
 
-# just to see last commit
+
 def _env(name: str, default: str = "") -> str:
     return (os.getenv(name) or default).strip()
 
@@ -63,6 +63,11 @@ def _missing_token_result() -> dict[str, Any]:
     }
 
 
+def _return_url() -> str:
+    """Derive merchant_return_url from CAMERPAY_RETURN_URL or from callback URL."""
+    return _env("CAMERPAY_RETURN_URL", "")
+
+
 def initiate_payment(
     *,
     amount: int,
@@ -75,6 +80,17 @@ def initiate_payment(
     """Initiate a payment via the CamerPay API.
 
     POST /payment/initiate
+    Payload fields per CamerPay docs:
+      merchant_invoice_id  (string, required)
+      amount               (number, required) — in XAF
+      currency             (string, default "XAF")
+      description          (string)
+      merchant_callback_url (string)
+      merchant_return_url   (string)
+      source               (string, default "api")
+      customer_phone       (string)
+      customer_id          (string)
+
     Returns transaction_uuid and pay_url from CamerPay.
     """
     if not _api_token():
@@ -85,19 +101,22 @@ def initiate_payment(
     headers = _auth_headers()
     token_preview = (headers.get("Authorization", "")[:30] + "...") if headers.get("Authorization") else "MISSING"
 
+    # Build payload per CamerPay docs
     payload: dict[str, Any] = {
+        "merchant_invoice_id": str(invoice_id),
         "amount": int(amount),
         "currency": "XAF",
-        "invoice_id": str(invoice_id),
         "description": str(description),
-        "callback_url": callback_url,
+        "merchant_callback_url": callback_url,
+        "merchant_return_url": _return_url() or callback_url,
+        "source": "api",
     }
     if customer_phone:
         payload["customer_phone"] = str(customer_phone)
     if customer_id:
         payload["customer_id"] = str(customer_id)
 
-    logger.info(
+    logger.error(
         "camerpay_initiate_request details=%s",
         json.dumps({
             "invoice_id": invoice_id,
@@ -107,6 +126,7 @@ def initiate_payment(
             "has_callback_url": bool(callback_url),
             "auth_token_preview": token_preview,
             "payload_keys": sorted(payload.keys()),
+            "payload_preview": {k: (v if k not in ("customer_phone",) else f"***{str(v)[-4:]}") for k, v in payload.items()},
         }, default=str),
     )
 
@@ -155,12 +175,17 @@ def initiate_payment(
     if not ok:
         if isinstance(data, dict):
             error = str(
-                data.get("message") or data.get("reason") or data.get("detail") or data.get("error") or "CamerPay initiation failed."
+                data.get("message")
+                or data.get("reason")
+                or data.get("detail")
+                or data.get("error")
+                or json.dumps(data, default=str)
+                or "CamerPay initiation failed."
             ).strip()
         else:
-            error = f"CamerPay initiation failed. Raw response: {response.text[:500]}"
+            error = f"CamerPay initiation failed. Raw response: {response.text[:1000]}"
 
-    logger.info(
+    logger.error(
         "camerpay_initiate_response details=%s",
         json.dumps({
             "invoice_id": invoice_id,
@@ -171,7 +196,8 @@ def initiate_payment(
             "pay_url_provided": bool(pay_url),
             "provider_status": status,
             "error": error,
-            "response_body_preview": str(data)[:500] if data else response.text[:500],
+            "response_headers": dict(response.headers),
+            "response_body_full": str(data)[:2000] if data else response.text[:2000],
         }, default=str),
     )
 
@@ -247,7 +273,7 @@ def get_transaction_status(transaction_uuid: str) -> dict[str, Any]:
             "network_error": False,
         }
 
-    logger.info("camerpay_status_request transaction_uuid=%s", transaction_uuid)
+    logger.error("camerpay_status_request transaction_uuid=%s", transaction_uuid)
 
     try:
         response = requests.get(
@@ -256,7 +282,7 @@ def get_transaction_status(transaction_uuid: str) -> dict[str, Any]:
             timeout=HTTP_TIMEOUT_SECONDS,
         )
     except requests.RequestException as exc:
-        logger.warning("camerpay_status_network_error transaction_uuid=%s error=%s", transaction_uuid, exc)
+        logger.error("camerpay_status_network_error transaction_uuid=%s error=%s", transaction_uuid, exc)
         return {
             "ok": False,
             "status_code": 0,
@@ -277,12 +303,13 @@ def get_transaction_status(transaction_uuid: str) -> dict[str, Any]:
 
     ok = bool(response.ok and success)
 
-    logger.info(
-        "camerpay_status_response transaction_uuid=%s status_code=%s ok=%s provider_status=%s",
+    logger.error(
+        "camerpay_status_response transaction_uuid=%s http_status=%s ok=%s provider_status=%s response=%s",
         transaction_uuid,
         response.status_code,
         ok,
         status,
+        json.dumps(str(data)[:1000], default=str),
     )
 
     return {
