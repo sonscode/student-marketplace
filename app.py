@@ -383,7 +383,7 @@ def env_int(name, default):
 PRICE_MIN = 500
 PRICE_MAX = 50000000
 DESCRIPTION_MAX_WORDS = 50
-BOOST_LISTING_AMOUNT = env_int("BOOST_LISTING_AMOUNT", 500)
+BOOST_LISTING_AMOUNT = env_int("BOOST_LISTING_AMOUNT", 100)
 REPORT_REASONS = (
     "Spam",
     "Scam",
@@ -2304,18 +2304,51 @@ def initiate_listing_boost(listing_id):
         )
         conn.commit()
         conn.close()
-        flash(payment_provider_feedback(campay_result, "Payment request could not be sent."), "error")
-        return redirect(next_url)
+
+        # Determine the specific failure reason
+        status_code = campay_result.get("status_code", 0)
+        provider_status = (campay_result.get("status") or "").strip().lower()
+        campay_error = str(campay_result.get("error") or "").strip().lower()
+        network_error = campay_result.get("network_error", False)
+
+        # Check if it's a "recent request exists" / "duplicate" scenario
+        if "recent" in campay_error or "duplicate" in campay_error or status_code == 409:
+            flash(
+                "A recent payment request was detected. Please wait a moment before trying again.",
+                "warn",
+            )
+        elif network_error:
+            flash(
+                "Mobile network temporarily unavailable. Please try again.",
+                "error",
+            )
+        elif "rejected" in campay_error or "declined" in campay_error:
+            flash("Payment was rejected.", "error")
+        elif "cancelled" in campay_error or "cancel" in campay_error:
+            flash("Payment was cancelled.", "error")
+        elif "timeout" in campay_error or "expired" in campay_error or "timed" in campay_error:
+            flash("Payment request timed out. Please try again.", "error")
+        else:
+            flash(payment_provider_feedback(campay_result, "Payment request could not be sent."), "error")
+
+        return redirect(url_for("select_boost_payment", listing_id=listing_id))
 
     pay_url = (campay_result.get("pay_url") or "").strip()
+    is_direct_method = payment_method in ("mtn_momo", "orange_money")
 
     conn.commit()
     conn.close()
-    if pay_url:
+
+    # For MTN / Orange direct methods: NEVER redirect to checkout page
+    if pay_url and not is_direct_method:
         flash("Redirecting you to CamerPay to complete payment.", "success")
         return redirect(pay_url)
 
-    flash("Payment initiated. Use the verification page to check payment status.", "success")
+    if is_direct_method:
+        flash("Payment request sent to your phone. Please approve the prompt on your device.", "success")
+    else:
+        flash("Payment initiated. Use the verification page to check payment status.", "success")
+
     return redirect(
         url_for(
             "verify_listing_payment",
