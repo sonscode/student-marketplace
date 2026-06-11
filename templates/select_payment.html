@@ -10,20 +10,45 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&family=Sora:wght@700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/marketplace.css') }}">
     <style>
-        .pay-page { width: min(580px, 92vw); margin: 28px auto 50px; }
-        .pay-title { margin: 0; font-size: clamp(1.2rem, 2.4vw, 1.5rem); letter-spacing: -0.015em; color: var(--text); }
-        .pay-amount { font-size: 1.5rem; font-weight: 800; color: var(--brand); }
+        body {
+            font-family: "Manrope", "Segoe UI", sans-serif;
+        }
 
+        .pay-page { width: min(580px, 92vw); margin: 28px auto 50px; }
+        .pay-title {
+            margin: 0; font-size: clamp(1.15rem, 2.2vw, 1.35rem);
+            font-family: "Sora", "Manrope", sans-serif;
+            letter-spacing: -0.02em; color: var(--text);
+        }
+        .pay-amount { font-size: 1.4rem; font-weight: 800; color: var(--brand); }
+
+        /* Topbar */
+        .topbar {
+            display: flex; align-items: center;
+            justify-content: space-between; flex-wrap: wrap;
+            gap: 10px; margin-bottom: 14px;
+        }
+        .back {
+            display: inline-flex; align-items: center; gap: 6px;
+            text-decoration: none; color: #2f3641;
+            border: 1px solid var(--line); background: #fff;
+            padding: 9px 12px; border-radius: 10px;
+            font-weight: 700; font-size: 0.9rem;
+            font-family: "Manrope", sans-serif;
+        }
+        .back:hover { border-color: #b8c7dc; box-shadow: var(--shadow-md); transform: translateY(-1px); }
+
+        /* Phone info card */
         .phone-card {
             border: 1px solid var(--line); border-radius: var(--radius-md);
             padding: 14px 16px; background: #ffffff;
             box-shadow: var(--shadow-sm); display: grid; gap: 6px;
         }
-        .phone-card .plabel { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; color: var(--muted); }
-        .phone-card .pnumber { font-weight: 700; font-size: 1.05rem; letter-spacing: 0.02em; }
+        .phone-card .plabel { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; color: var(--muted); font-family: "Poppins", sans-serif; }
+        .phone-card .pnumber { font-weight: 700; font-size: 1rem; letter-spacing: 0.03em; }
         .net-chip {
             display: inline-flex; align-items: center; gap: 6px;
-            font-size: 0.85rem; font-weight: 700;
+            font-size: 0.82rem; font-weight: 700;
             border-radius: 999px; padding: 4px 12px; width: fit-content;
             border: 1px solid transparent;
         }
@@ -31,35 +56,71 @@
         .net-chip.orange { background: #ffedd5; color: #92400e; border-color: #fde68a; }
         .net-chip.unknown { background: var(--chip); color: var(--muted); }
 
-        .pay-options { display: grid; gap: 12px; }
-        .pay-opt {
-            border: 2px solid var(--line); border-radius: var(--radius-md);
-            padding: 16px 18px; background: #ffffff;
+        /* Payment option cards */
+        .pay-options { display: flex; flex-direction: column; gap: 14px; }
+        .pay-card {
+            border: 2px solid var(--line); border-radius: var(--radius-lg);
+            padding: 18px 20px; background: #ffffff;
             display: flex; align-items: center; gap: 16px;
-            cursor: pointer; transition: transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
+            cursor: pointer;
             box-shadow: var(--shadow-sm);
+            transition: transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease, background 0.14s ease;
         }
-        .pay-opt:hover:not(.disabled) { transform: translateY(-1px); border-color: var(--brand-light); box-shadow: var(--shadow-md); }
-        .pay-opt.selected { border-color: var(--brand); background: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,0.08); }
-        .pay-opt.disabled { opacity: 0.45; cursor: not-allowed; border-color: var(--line); background: #f8fafc; box-shadow: none; }
-        .pay-opt input[type="radio"] { width: 20px; height: 20px; accent-color: var(--brand); flex-shrink: 0; }
-        .pay-opt.disabled input[type="radio"] { cursor: not-allowed; }
-        .pay-icon { font-size: 1.7rem; flex-shrink: 0; width: 40px; text-align: center; }
-        .pay-name { font-weight: 700; font-size: 1.05rem; }
-        .pay-desc { margin: 3px 0 0; color: var(--muted); font-size: 0.87rem; line-height: 1.45; }
-        .unavail { font-size: 0.76rem; font-weight: 700; color: var(--danger); background: #fef2f2; border-radius: 999px; padding: 2px 10px; display: inline-block; margin-top: 4px; border: 1px solid #fecaca; }
+        .pay-card:hover:not(.disabled) { transform: translateY(-2px); border-color: var(--brand-light); box-shadow: var(--shadow-md); }
+        .pay-card.selected { border-color: var(--brand); background: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,0.12); }
+        .pay-card.disabled { opacity: 0.4; cursor: not-allowed; background: #f8fafc; border-color: var(--line); box-shadow: none; }
 
+        .pay-card input[type="radio"] { width: 20px; height: 20px; accent-color: var(--brand); flex-shrink: 0; }
+        .pay-card.disabled input[type="radio"] { cursor: not-allowed; }
+
+        .pay-icon-wrap {
+            width: 44px; height: 44px; border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.5rem; flex-shrink: 0; background: var(--surface);
+        }
+        .pay-card.selected .pay-icon-wrap { background: #dbeafe; }
+
+        .pay-info { flex: 1; min-width: 0; }
+        .pay-name {
+            font-family: "Sora", "Manrope", sans-serif;
+            font-weight: 700; font-size: 1rem; letter-spacing: -0.01em;
+            margin: 0;
+        }
+        .pay-desc {
+            margin: 3px 0 0; color: var(--muted); font-size: 0.86rem;
+            line-height: 1.5;
+        }
+        .unavail {
+            font-size: 0.72rem; font-weight: 700; color: var(--danger);
+            background: #fef2f2; border-radius: 999px; padding: 2px 10px;
+            display: inline-block; margin-top: 4px; border: 1px solid #fecaca;
+        }
+
+        /* USSD help text */
+        .ussd-help {
+            font-size: 0.82rem; color: var(--muted); background: #f8fafc;
+            border: 1px dashed var(--line); border-radius: var(--radius-sm);
+            padding: 10px 14px; margin: 6px 0 0; line-height: 1.5;
+        }
+        .ussd-help code {
+            font-weight: 800; color: var(--text); background: #eff6ff;
+            padding: 1px 6px; border-radius: 4px; border: 1px solid #bfdbfe;
+        }
+
+        /* Submit button - matches Azison primary */
         .submit-btn {
             border: 0; border-radius: var(--radius-sm); padding: 12px 14px;
-            color: #fff; font-weight: 800; font-size: 1.02rem;
+            color: #fff; font-weight: 800; font-size: 1rem;
             background: var(--brand); cursor: pointer; text-align: center;
+            font-family: "Manrope", sans-serif; width: 100%;
             transition: transform 0.14s ease, box-shadow 0.14s ease;
         }
         .submit-btn:hover:not(:disabled) { background: #1d4ed8; box-shadow: 0 12px 26px rgba(37,99,235,0.2); transform: translateY(-1px); }
-        .submit-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+        .submit-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+        /* Progress card */
         .progress-card {
-            border: 1px solid var(--line-soft); border-radius: var(--radius-md);
+            border: 1px solid var(--line-soft); border-radius: var(--radius-lg);
             padding: 18px; background: var(--surface);
             box-shadow: var(--shadow-md); display: grid; gap: 12px;
         }
@@ -78,15 +139,16 @@
         .retry-btn {
             border: 2px solid var(--brand); border-radius: var(--radius-sm);
             padding: 10px 14px; background: #fff;
-            color: var(--brand); font-weight: 800; font-size: 0.95rem;
-            cursor: pointer; text-align: center;
+            color: var(--brand); font-weight: 800; font-size: 0.92rem;
+            cursor: pointer; text-align: center; font-family: "Manrope", sans-serif;
             transition: transform 0.14s ease, box-shadow 0.14s ease;
         }
         .retry-btn:hover:not(:disabled) { box-shadow: var(--shadow-md); transform: translateY(-1px); }
         .retry-btn:disabled { opacity: 0.4; cursor: not-allowed; border-color: var(--line); color: var(--muted); }
 
         @media (max-width: 600px) {
-            .pay-opt { padding: 14px; gap: 12px; }
+            .pay-card { padding: 14px 16px; gap: 12px; }
+            .pay-icon-wrap { width: 38px; height: 38px; font-size: 1.3rem; }
         }
     </style>
 </head>
@@ -110,7 +172,7 @@
         <div class="card" style="display:grid;gap:18px">
             <div>
                 <h1 class="pay-title">Choose Payment Method</h1>
-                <p style="margin:6px 0 0;color:var(--muted);font-size:0.95rem">
+                <p style="margin:4px 0 0;color:var(--muted);font-size:0.92rem">
                     Boost your listing for <span class="pay-amount">{{ boost_amount }} XAF</span>
                 </p>
             </div>
@@ -133,44 +195,54 @@
                 <input type="hidden" name="next" value="{{ next }}">
 
                 <div class="pay-options">
-                    <label class="pay-option {% if detected_network == 'orange' %}disabled{% endif %}" id="opt-mtn" onclick="selectPay(this, 'mtn_momo')">
+                    <label class="pay-card {% if detected_network == 'orange' %}disabled{% endif %}" id="opt-mtn" onclick="selectPay(this)">
                         <input type="radio" name="payment_method" value="mtn_momo" {% if detected_network == 'orange' %}disabled{% endif %} required>
-                        <span class="pay-icon">📱</span>
-                        <div>
+                        <span class="pay-icon-wrap">📱</span>
+                        <div class="pay-info">
                             <div class="pay-name">MTN MoMo</div>
-                            <p class="pay-desc">Pay with MTN Mobile Money. A payment prompt will be sent to your phone.</p>
+                            <p class="pay-desc">A payment prompt will be sent to your phone.</p>
                             {% if detected_network == 'orange' %}<span class="unavail">Not available for this number</span>{% endif %}
                         </div>
                     </label>
 
-                    <label class="pay-option {% if detected_network == 'mtn' %}disabled{% endif %}" id="opt-orange" onclick="selectPay(this, 'orange_money')">
+                    <label class="pay-card {% if detected_network == 'mtn' %}disabled{% endif %}" id="opt-orange" onclick="selectPay(this)">
                         <input type="radio" name="payment_method" value="orange_money" {% if detected_network == 'mtn' %}disabled{% endif %} required>
-                        <span class="pay-icon">🍊</span>
-                        <div>
+                        <span class="pay-icon-wrap">🍊</span>
+                        <div class="pay-info">
                             <div class="pay-name">Orange Money</div>
-                            <p class="pay-desc">Pay with Orange Money. A payment prompt will be sent to your phone.</p>
+                            <p class="pay-desc">A payment prompt will be sent to your phone.</p>
                             {% if detected_network == 'mtn' %}<span class="unavail">Not available for this number</span>{% endif %}
                         </div>
                     </label>
 
-                    <label class="pay-option" id="opt-other" onclick="selectPay(this, '')">
+                    <label class="pay-card" id="opt-other" onclick="selectPay(this)">
                         <input type="radio" name="payment_method" value="">
-                        <span class="pay-icon">💳</span>
-                        <div>
+                        <span class="pay-icon-wrap">💳</span>
+                        <div class="pay-info">
                             <div class="pay-name">Other Methods</div>
-                            <p class="pay-desc">Pay with card, bank transfer, or other methods via the CamerPay checkout.</p>
+                            <p class="pay-desc">Pay with card, bank transfer, or other methods via CamerPay.</p>
                         </div>
                     </label>
                 </div>
 
-                <button class="submit-btn" type="submit" id="boost-submit" disabled>Proceed to Payment</button>
+                <button class="submit-btn" type="submit" id="boost-submit" disabled style="margin-top:14px">Proceed to Payment</button>
             </form>
+
+            {% if detected_network == "mtn" %}
+            <p class="ussd-help">
+                💡 If the prompt does not appear, dial <code>*126#</code> on your phone to complete the payment.
+            </p>
+            {% elif detected_network == "orange" %}
+            <p class="ussd-help">
+                💡 If the prompt does not appear, dial <code>#157#</code> on your phone to complete the payment.
+            </p>
+            {% endif %}
 
             <div class="progress-card" id="progress-section" style="display:none">
                 <div class="pstep active" id="step-1"><span class="pstep-num">1</span><span>Payment request sent to your phone.</span></div>
                 <div class="pstep" id="step-2"><span class="pstep-num">2</span><span>Please approve the payment prompt on your device.</span></div>
                 <div class="pstep" id="step-3"><span class="pstep-num">3</span><span>Your listing will be featured automatically.</span></div>
-                <p style="color:var(--muted);font-size:0.88rem;margin:2px 0 0">
+                <p style="color:var(--muted);font-size:0.86rem;margin:2px 0 0">
                     If you do not receive a prompt within 30 seconds, you may try again.
                 </p>
                 <button class="retry-btn" id="retry-btn" disabled onclick="startCountdown(30)">
@@ -183,7 +255,7 @@
     <script>
         function selectPay(opt) {
             if (opt.classList.contains('disabled')) return;
-            document.querySelectorAll('.pay-option').forEach(function(el) { el.classList.remove('selected'); });
+            document.querySelectorAll('.pay-card').forEach(function(el) { el.classList.remove('selected'); });
             opt.classList.add('selected');
             opt.querySelector('input[type="radio"]').checked = true;
             document.getElementById('boost-submit').disabled = false;

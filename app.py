@@ -2226,7 +2226,7 @@ def initiate_listing_boost(listing_id):
     existing_pending_payment = get_pending_payment_for_listing(cursor, listing_id)
     if existing_pending_payment is not None:
         conn.close()
-        flash("A payment is already pending for this listing. Confirm it to activate featured status.", "info")
+        # Do NOT flash here — verify_listing_payment will show its own status message
         return redirect(
             url_for(
                 "verify_listing_payment",
@@ -2239,7 +2239,7 @@ def initiate_listing_boost(listing_id):
     if not collect_phone:
         conn.close()
         flash("Add a valid Cameroon mobile number to your listing before boosting.", "error")
-        return redirect(next_url)
+        return redirect(url_for("select_boost_payment", listing_id=listing_id))
 
     charge_amount = effective_boost_amount()
     payment_row = create_pending_payment_record(cursor, listing_id, charge_amount, collect_phone)
@@ -2331,7 +2331,7 @@ def initiate_listing_boost(listing_id):
         else:
             flash(payment_provider_feedback(campay_result, "Payment request could not be sent."), "error")
 
-        return redirect(url_for("select_boost_payment", listing_id=listing_id))
+        return redirect(url_for("listing_detail", id=listing_id))
 
     pay_url = (campay_result.get("pay_url") or "").strip()
     is_direct_method = payment_method in ("mtn_momo", "orange_money")
@@ -2345,7 +2345,12 @@ def initiate_listing_boost(listing_id):
         return redirect(pay_url)
 
     if is_direct_method:
-        flash("Payment request sent to your phone. Please approve the prompt on your device.", "success")
+        ussd_code = "*126#" if payment_method == "mtn_momo" else "#157#"
+        flash(
+            f"Payment request sent to your phone. Please approve the prompt on your device. "
+            f"If you do not see a prompt, dial {ussd_code} to complete the payment.",
+            "success",
+        )
     else:
         flash("Payment initiated. Use the verification page to check payment status.", "success")
 
@@ -2402,7 +2407,7 @@ def verify_listing_payment(reference_id):
         )
         conn.commit()
         conn.close()
-        flash("This payment cannot be verified (missing provider reference). Please retry boosting.", "error")
+        flash("This payment could not be verified. Please try boosting again.", "error")
         return redirect(next_url)
 
     log_payment_event(
@@ -2430,7 +2435,7 @@ def verify_listing_payment(reference_id):
 
     if status_result.get("network_error"):
         conn.close()
-        flash(payment_provider_feedback(status_result, "Could not verify payment right now."), "error")
+        flash("We could not confirm the payment right now. Please try again.", "error")
         return redirect(next_url)
 
     if not provider_status:
@@ -2438,7 +2443,7 @@ def verify_listing_payment(reference_id):
             provider_status = PAYMENT_STATUS_FAILED
         else:
             conn.close()
-            flash(payment_provider_feedback(status_result, "Could not verify payment right now."), "error")
+            flash("We could not confirm the payment right now. Please try again.", "error")
             return redirect(next_url)
 
     payload = status_result.get("data")
