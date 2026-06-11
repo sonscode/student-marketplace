@@ -8,190 +8,98 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&family=Sora:wght@700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/marketplace.css') }}">
     <style>
-        :root {
-            --bg: #f7f4ec;
-            --card: #dce8f5;
-            --text: #1b1d20;
-            --muted: #60656f;
-            --line: #d0d6e2;
-            --brand: #d0562d;
-            --success: #1b5a32;
-            --success-bg: #edf9f1;
-        }
+        .pay-page { width: min(580px, 92vw); margin: 28px auto 50px; }
+        .pay-title { margin: 0; font-size: clamp(1.2rem, 2.4vw, 1.5rem); letter-spacing: -0.015em; color: var(--text); }
+        .pay-amount { font-size: 1.5rem; font-weight: 800; color: var(--brand); }
 
-        * { box-sizing: border-box; }
-
-        body {
-            margin: 0;
-            font-family: "Manrope", "Segoe UI", sans-serif;
-            color: var(--text);
-            background: radial-gradient(circle at 10% 0%, #fff2d7 0, transparent 28%), radial-gradient(circle at 90% 10%, #ffe7dd 0, transparent 24%), var(--bg);
-            min-height: 100vh;
+        .phone-card {
+            border: 1px solid var(--line); border-radius: var(--radius-md);
+            padding: 14px 16px; background: #ffffff;
+            box-shadow: var(--shadow-sm); display: grid; gap: 6px;
         }
-
-        .page {
-            width: min(600px, 92vw);
-            margin: 34px auto 50px;
+        .phone-card .plabel { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; color: var(--muted); }
+        .phone-card .pnumber { font-weight: 700; font-size: 1.05rem; letter-spacing: 0.02em; }
+        .net-chip {
+            display: inline-flex; align-items: center; gap: 6px;
+            font-size: 0.85rem; font-weight: 700;
+            border-radius: 999px; padding: 4px 12px; width: fit-content;
+            border: 1px solid transparent;
         }
+        .net-chip.mtn { background: #dbeafe; color: #1e3a8a; border-color: #93c5fd; }
+        .net-chip.orange { background: #ffedd5; color: #92400e; border-color: #fde68a; }
+        .net-chip.unknown { background: var(--chip); color: var(--muted); }
 
-        .brand {
-            font-family: "Sora", "Manrope", sans-serif;
-            font-weight: 800;
-            letter-spacing: -0.03em;
+        .pay-options { display: grid; gap: 12px; }
+        .pay-opt {
+            border: 2px solid var(--line); border-radius: var(--radius-md);
+            padding: 16px 18px; background: #ffffff;
+            display: flex; align-items: center; gap: 16px;
+            cursor: pointer; transition: transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
+            box-shadow: var(--shadow-sm);
         }
-
-        .topbar {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-bottom: 14px;
-        }
-
-        .back {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            text-decoration: none;
-            color: #2f3641;
-            border: 1px solid var(--line);
-            background: #fff;
-            padding: 9px 12px;
-            border-radius: 10px;
-            font-weight: 700;
-        }
-
-        .card {
-            border: 1px solid var(--line);
-            border-radius: 18px;
-            background: var(--card);
-            padding: 18px;
-            display: grid;
-            gap: 16px;
-            animation: rise 0.24s ease both;
-        }
-
-        .title {
-            margin: 0;
-            font-size: clamp(1.2rem, 2.4vw, 1.6rem);
-            letter-spacing: -0.02em;
-            line-height: 1.2;
-        }
-
-        .amount {
-            font-size: 1.6rem;
-            font-weight: 800;
-            color: var(--brand);
-        }
-
-        .payment-options {
-            display: grid;
-            gap: 12px;
-        }
-
-        .payment-option {
-            border: 2px solid var(--line);
-            border-radius: 14px;
-            padding: 14px 16px;
-            background: #fff;
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            cursor: pointer;
-            transition: border-color 0.15s ease;
-        }
-
-        .payment-option:hover {
-            border-color: var(--brand);
-        }
-
-        .payment-option input[type="radio"] {
-            width: 20px;
-            height: 20px;
-            accent-color: var(--brand);
-            flex-shrink: 0;
-        }
-
-        .payment-option.selected {
-            border-color: var(--brand);
-            background: #fff8f5;
-        }
-
-        .payment-label {
-            font-weight: 700;
-            font-size: 1.1rem;
-        }
-
-        .payment-desc {
-            margin: 4px 0 0;
-            color: var(--muted);
-            font-size: 0.88rem;
-        }
-
-        .payment-icon {
-            font-size: 1.8rem;
-            flex-shrink: 0;
-            width: 40px;
-            text-align: center;
-        }
+        .pay-opt:hover:not(.disabled) { transform: translateY(-1px); border-color: var(--brand-light); box-shadow: var(--shadow-md); }
+        .pay-opt.selected { border-color: var(--brand); background: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,0.08); }
+        .pay-opt.disabled { opacity: 0.45; cursor: not-allowed; border-color: var(--line); background: #f8fafc; box-shadow: none; }
+        .pay-opt input[type="radio"] { width: 20px; height: 20px; accent-color: var(--brand); flex-shrink: 0; }
+        .pay-opt.disabled input[type="radio"] { cursor: not-allowed; }
+        .pay-icon { font-size: 1.7rem; flex-shrink: 0; width: 40px; text-align: center; }
+        .pay-name { font-weight: 700; font-size: 1.05rem; }
+        .pay-desc { margin: 3px 0 0; color: var(--muted); font-size: 0.87rem; line-height: 1.45; }
+        .unavail { font-size: 0.76rem; font-weight: 700; color: var(--danger); background: #fef2f2; border-radius: 999px; padding: 2px 10px; display: inline-block; margin-top: 4px; border: 1px solid #fecaca; }
 
         .submit-btn {
-            border: 0;
-            border-radius: 12px;
-            padding: 12px 14px;
-            text-decoration: none;
-            color: white;
-            font-weight: 700;
-            font-size: 1.05rem;
-            background: linear-gradient(135deg, #ea6f45, var(--brand));
-            cursor: pointer;
-            text-align: center;
+            border: 0; border-radius: var(--radius-sm); padding: 12px 14px;
+            color: #fff; font-weight: 800; font-size: 1.02rem;
+            background: var(--brand); cursor: pointer; text-align: center;
+            transition: transform 0.14s ease, box-shadow 0.14s ease;
         }
+        .submit-btn:hover:not(:disabled) { background: #1d4ed8; box-shadow: 0 12px 26px rgba(37,99,235,0.2); transform: translateY(-1px); }
+        .submit-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
-        .submit-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
+        .progress-card {
+            border: 1px solid var(--line-soft); border-radius: var(--radius-md);
+            padding: 18px; background: var(--surface);
+            box-shadow: var(--shadow-md); display: grid; gap: 12px;
         }
-
-        .flash-stack {
-            margin-bottom: 14px;
-            display: grid;
-            gap: 8px;
+        .pstep { display: flex; align-items: center; gap: 12px; font-size: 0.92rem; text-align: left; color: var(--muted); }
+        .pstep.active { font-weight: 700; color: var(--text); }
+        .pstep.done { color: var(--ok); }
+        .pstep-num {
+            width: 28px; height: 28px; border-radius: 999px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.82rem; font-weight: 800; flex-shrink: 0;
+            background: var(--line); color: var(--muted);
         }
+        .pstep.active .pstep-num { background: var(--brand); color: #fff; }
+        .pstep.done .pstep-num { background: var(--ok); color: #fff; }
 
-        .flash {
-            border: 1px solid var(--line);
-            border-radius: 12px;
-            padding: 10px 12px;
-            font-size: 0.9rem;
-            background: #fff;
-            margin: 0;
+        .retry-btn {
+            border: 2px solid var(--brand); border-radius: var(--radius-sm);
+            padding: 10px 14px; background: #fff;
+            color: var(--brand); font-weight: 800; font-size: 0.95rem;
+            cursor: pointer; text-align: center;
+            transition: transform 0.14s ease, box-shadow 0.14s ease;
         }
+        .retry-btn:hover:not(:disabled) { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+        .retry-btn:disabled { opacity: 0.4; cursor: not-allowed; border-color: var(--line); color: var(--muted); }
 
-        .flash.info {
-            border-color: #e8dbaf;
-            background: #fff9ea;
-            color: #6f4e15;
-        }
-
-        @keyframes rise {
-            from { opacity: 0; transform: translateY(6px); }
-            to { opacity: 1; transform: translateY(0); }
+        @media (max-width: 600px) {
+            .pay-opt { padding: 14px; gap: 12px; }
         }
     </style>
 </head>
 <body>
-    <main class="page">
+    <main class="page pay-page">
         <div class="topbar">
-            <h1 style="margin:0;font-size:clamp(1.2rem,2vw,1.5rem)"><span class="brand">AZISON</span> <span class="site-title">BOOST LISTING</span></h1>
+            <h1 class="topbar-title"><span class="brand">AZISON</span> <span class="site-title">BOOST</span></h1>
             <a class="back" href="{{ url_for('listing_detail', id=listing_id) }}">⬅ Back</a>
         </div>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-                <section class="flash-stack" aria-live="polite">
+                <section class="flash-stack" style="margin-bottom:14px" aria-live="polite">
                     {% for category, message in messages %}
                         <p class="flash {{ category }}">{{ message }}</p>
                     {% endfor %}
@@ -199,66 +107,117 @@
             {% endif %}
         {% endwith %}
 
-        <article class="card">
-            <h1 class="title">Choose Payment Method</h1>
-            <p>Boost your listing for <span class="amount">{{ boost_amount }} XAF</span></p>
+        <div class="card" style="display:grid;gap:18px">
+            <div>
+                <h1 class="pay-title">Choose Payment Method</h1>
+                <p style="margin:6px 0 0;color:var(--muted);font-size:0.95rem">
+                    Boost your listing for <span class="pay-amount">{{ boost_amount }} XAF</span>
+                </p>
+            </div>
 
-            <form method="POST" action="{{ url_for('initiate_listing_boost', listing_id=listing_id) }}" onsubmit="return validatePayment(event)">
+            {% if collect_phone %}
+            <div class="phone-card">
+                <span class="plabel">Payment Number</span>
+                <span class="pnumber">{{ collect_phone[:3] }} {{ collect_phone[3:6] }} {{ collect_phone[6:9] }} {{ collect_phone[9:] }}</span>
+                {% if detected_network == "mtn" %}
+                    <span class="net-chip mtn">📱 Detected Network: MTN MoMo</span>
+                {% elif detected_network == "orange" %}
+                    <span class="net-chip orange">🍊 Detected Network: Orange Money</span>
+                {% else %}
+                    <span class="net-chip unknown">Detected Network: Unknown</span>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <form method="POST" action="{{ url_for('initiate_listing_boost', listing_id=listing_id) }}" id="payment-form">
                 <input type="hidden" name="next" value="{{ next }}">
 
-                <div class="payment-options">
-                    <label class="payment-option" onclick="selectPayment(this, 'mtn_momo')">
-                        <input type="radio" name="payment_method" value="mtn_momo" required>
-                        <span class="payment-icon">📱</span>
+                <div class="pay-options">
+                    <label class="pay-option {% if detected_network == 'orange' %}disabled{% endif %}" id="opt-mtn" onclick="selectPay(this, 'mtn_momo')">
+                        <input type="radio" name="payment_method" value="mtn_momo" {% if detected_network == 'orange' %}disabled{% endif %} required>
+                        <span class="pay-icon">📱</span>
                         <div>
-                            <div class="payment-label">MTN MoMo</div>
-                            <p class="payment-desc">Pay with MTN Mobile Money. A payment prompt will be sent to your phone.</p>
+                            <div class="pay-name">MTN MoMo</div>
+                            <p class="pay-desc">Pay with MTN Mobile Money. A payment prompt will be sent to your phone.</p>
+                            {% if detected_network == 'orange' %}<span class="unavail">Not available for this number</span>{% endif %}
                         </div>
                     </label>
 
-                    <label class="payment-option" onclick="selectPayment(this, 'orange_money')">
-                        <input type="radio" name="payment_method" value="orange_money" required>
-                        <span class="payment-icon">🍊</span>
+                    <label class="pay-option {% if detected_network == 'mtn' %}disabled{% endif %}" id="opt-orange" onclick="selectPay(this, 'orange_money')">
+                        <input type="radio" name="payment_method" value="orange_money" {% if detected_network == 'mtn' %}disabled{% endif %} required>
+                        <span class="pay-icon">🍊</span>
                         <div>
-                            <div class="payment-label">Orange Money</div>
-                            <p class="payment-desc">Pay with Orange Money. A payment prompt will be sent to your phone.</p>
+                            <div class="pay-name">Orange Money</div>
+                            <p class="pay-desc">Pay with Orange Money. A payment prompt will be sent to your phone.</p>
+                            {% if detected_network == 'mtn' %}<span class="unavail">Not available for this number</span>{% endif %}
                         </div>
                     </label>
 
-                    <label class="payment-option" onclick="selectPayment(this, '')">
+                    <label class="pay-option" id="opt-other" onclick="selectPay(this, '')">
                         <input type="radio" name="payment_method" value="">
-                        <span class="payment-icon">💳</span>
+                        <span class="pay-icon">💳</span>
                         <div>
-                            <div class="payment-label">Other Methods</div>
-                            <p class="payment-desc">Pay with card, bank transfer, or other payment methods via CamerPay checkout.</p>
+                            <div class="pay-name">Other Methods</div>
+                            <p class="pay-desc">Pay with card, bank transfer, or other methods via the CamerPay checkout.</p>
                         </div>
                     </label>
                 </div>
 
                 <button class="submit-btn" type="submit" id="boost-submit" disabled>Proceed to Payment</button>
             </form>
-        </article>
+
+            <div class="progress-card" id="progress-section" style="display:none">
+                <div class="pstep active" id="step-1"><span class="pstep-num">1</span><span>Payment request sent to your phone.</span></div>
+                <div class="pstep" id="step-2"><span class="pstep-num">2</span><span>Please approve the payment prompt on your device.</span></div>
+                <div class="pstep" id="step-3"><span class="pstep-num">3</span><span>Your listing will be featured automatically.</span></div>
+                <p style="color:var(--muted);font-size:0.88rem;margin:2px 0 0">
+                    If you do not receive a prompt within 30 seconds, you may try again.
+                </p>
+                <button class="retry-btn" id="retry-btn" disabled onclick="startCountdown(30)">
+                    <span id="retry-text">Please wait 30 seconds before retrying...</span>
+                </button>
+            </div>
+        </div>
     </main>
 
     <script>
-        function selectPayment(option, value) {
-            document.querySelectorAll('.payment-option').forEach(function(el) {
-                el.classList.remove('selected');
-            });
-            option.classList.add('selected');
-            option.querySelector('input[type="radio"]').checked = true;
+        function selectPay(opt) {
+            if (opt.classList.contains('disabled')) return;
+            document.querySelectorAll('.pay-option').forEach(function(el) { el.classList.remove('selected'); });
+            opt.classList.add('selected');
+            opt.querySelector('input[type="radio"]').checked = true;
             document.getElementById('boost-submit').disabled = false;
         }
 
-        function validatePayment(e) {
-            var selected = document.querySelector('input[name="payment_method"]:checked');
-            if (!selected) {
-                alert('Please select a payment method.');
-                e.preventDefault();
-                return false;
-            }
-            return true;
+        document.addEventListener("DOMContentLoaded", function() {
+            var net = "{{ detected_network }}";
+            if (net === "mtn") { var o = document.getElementById('opt-mtn'); if(o&&!o.classList.contains('disabled')) selectPay(o); }
+            else if (net === "orange") { var o = document.getElementById('opt-orange'); if(o&&!o.classList.contains('disabled')) selectPay(o); }
+        });
+
+        var ci = null;
+        function startCountdown(s) {
+            var btn = document.getElementById('retry-btn'), txt = document.getElementById('retry-text');
+            btn.disabled = true;
+            if(ci) clearInterval(ci);
+            txt.textContent = 'Retry available in: ' + s + 's';
+            ci = setInterval(function() {
+                s--;
+                if(s <= 0) { clearInterval(ci); ci = null; btn.disabled = false; txt.textContent = 'Try Again'; }
+                else { txt.textContent = 'Retry available in: ' + s + 's'; }
+            }, 1000);
         }
+
+        (function() {
+            var fl = document.querySelectorAll('.flash.success');
+            for(var i=0;i<fl.length;i++) {
+                var m = fl[i].textContent || '';
+                if(m.indexOf('sent')>-1||m.indexOf('prompt')>-1) {
+                    document.getElementById('progress-section').style.display = 'grid';
+                    startCountdown(30); break;
+                }
+            }
+        })();
     </script>
 </body>
 </html>

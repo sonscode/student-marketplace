@@ -328,6 +328,49 @@ def upload_listing_image(image_file):
     return secure_url
 
 
+def detect_phone_network(phone: str) -> str:
+    """Detect whether a Cameroon phone number belongs to MTN or Orange.
+
+    Returns 'mtn', 'orange', or '' if unknown.
+    Cameroon mobile numbers are 9 digits starting with 6.
+
+    MTN: 64x, 65x, 67x, 68x, 69x
+    Orange: 62x, 66x, 655x, 656x, 657x, 658x, 659x
+    Longer prefixes (e.g. 655) take priority over shorter ones (e.g. 65).
+    """
+    normalized = normalize_phone(phone)
+    if not normalized or len(normalized) < 12:
+        return ""
+
+    national = normalized[3:]  # 9-digit national number
+
+    if not national.startswith("6"):
+        return ""
+
+    # Three-digit prefix check (takes priority for Orange 655-659)
+    # Longer, more specific matches first
+    first_three = national[:3]
+    first_two = national[:2]
+
+    # Orange: 655, 656, 657, 658, 659
+    if first_three in ("655", "656", "657", "658", "659"):
+        return "orange"
+
+    # Orange: 62x, 66x
+    if first_two in ("62", "66"):
+        return "orange"
+
+    # MTN: 64x, 65x, 67x, 68x, 69x
+    if first_two in ("64", "67", "68", "69"):
+        return "mtn"
+
+    # MTN: 65x (but NOT 655-659 which were caught above)
+    if first_two == "65":
+        return "mtn"
+
+    return ""
+
+
 def env_int(name, default):
     raw = (os.getenv(name) or "").strip()
     try:
@@ -2129,12 +2172,29 @@ def select_boost_payment(listing_id):
             )
         )
 
+    # Detect phone network for the payment number
+    collect_phone = resolve_collect_phone(listing["phone"], owner_phone)
+    if not collect_phone:
+        conn.close()
+        flash("Add a valid Cameroon mobile number to your listing before boosting.", "error")
+        return redirect(next_url)
+
+    detected_network = detect_phone_network(collect_phone)
+    network_label = ""
+    if detected_network == "mtn":
+        network_label = "MTN MoMo"
+    elif detected_network == "orange":
+        network_label = "Orange Money"
+
     conn.close()
     return render_template(
         "select_payment.html",
         listing_id=listing_id,
         boost_amount=effective_boost_amount(),
         next=next_url,
+        collect_phone=collect_phone,
+        detected_network=detected_network,
+        network_label=network_label,
     )
 
 
@@ -2198,6 +2258,18 @@ def initiate_listing_boost(listing_id):
 
     # Read payment_method from the form selection
     payment_method = (request.form.get("payment_method") or "").strip()
+
+    # Backend validation: ensure payment method matches phone network
+    detected_network = detect_phone_network(collect_phone)
+    if payment_method == "mtn_momo" and detected_network == "orange":
+        conn.close()
+        flash("MTN MoMo is not available for this phone number. The detected network is Orange Money.", "error")
+        return redirect(url_for("select_boost_payment", listing_id=listing_id))
+
+    if payment_method == "orange_money" and detected_network == "mtn":
+        conn.close()
+        flash("Orange Money is not available for this phone number. The detected network is MTN MoMo.", "error")
+        return redirect(url_for("select_boost_payment", listing_id=listing_id))
 
     campay_result = campay.request_collect(
         phone=collect_phone,
