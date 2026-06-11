@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_BASE_URL = "https://camerpay.biz/api"
 HTTP_TIMEOUT_SECONDS = 20
 
-
+# just to see last commit
 def _env(name: str, default: str = "") -> str:
     return (os.getenv(name) or default).strip()
 
