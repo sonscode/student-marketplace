@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import json
 import logging
 import os
 from typing import Any
@@ -79,12 +80,17 @@ def initiate_payment(
     if not _api_token():
         return _missing_token_result()
 
+    callback_url = str(callback_url)
+    request_url = _api_url("/payment/initiate")
+    headers = _auth_headers()
+    token_preview = (headers.get("Authorization", "")[:30] + "...") if headers.get("Authorization") else "MISSING"
+
     payload: dict[str, Any] = {
         "amount": int(amount),
         "currency": "XAF",
         "invoice_id": str(invoice_id),
         "description": str(description),
-        "callback_url": str(callback_url),
+        "callback_url": callback_url,
     }
     if customer_phone:
         payload["customer_phone"] = str(customer_phone)
@@ -92,21 +98,36 @@ def initiate_payment(
         payload["customer_id"] = str(customer_id)
 
     logger.info(
-        "camerpay_initiate_request invoice_id=%s amount=%s phone=***%s",
-        invoice_id,
-        amount,
-        str(customer_phone)[-4:] if customer_phone else "",
+        "camerpay_initiate_request details=%s",
+        json.dumps({
+            "invoice_id": invoice_id,
+            "url": request_url,
+            "amount": amount,
+            "phone_masked": f"***{str(customer_phone)[-4:]}" if customer_phone else "",
+            "has_callback_url": bool(callback_url),
+            "auth_token_preview": token_preview,
+            "payload_keys": sorted(payload.keys()),
+        }, default=str),
     )
 
+    response = None
     try:
         response = requests.post(
-            _api_url("/payment/initiate"),
+            request_url,
             json=payload,
-            headers=_auth_headers(),
+            headers=headers,
             timeout=HTTP_TIMEOUT_SECONDS,
         )
     except requests.RequestException as exc:
-        logger.warning("camerpay_initiate_network_error invoice_id=%s error=%s", invoice_id, exc)
+        logger.error(
+            "camerpay_initiate_network_error details=%s",
+            json.dumps({
+                "invoice_id": invoice_id,
+                "url": request_url,
+                "error": str(exc),
+                "error_type": type(exc).__name__,
+            }, default=str),
+        )
         return {
             "ok": False,
             "status_code": 0,
@@ -124,7 +145,7 @@ def initiate_payment(
     status = ""
     success = False
     if isinstance(data, dict):
-        transaction_uuid = str(data.get("transaction_uuid") or "").strip()
+        transaction_uuid = str(data.get("transaction_uuid") or data.get("uuid") or "").strip()
         pay_url = str(data.get("pay_url") or "").strip()
         status = str(data.get("status") or "").strip()
         success = data.get("success") is True
@@ -134,18 +155,24 @@ def initiate_payment(
     if not ok:
         if isinstance(data, dict):
             error = str(
-                data.get("message") or data.get("reason") or data.get("detail") or "CamerPay initiation failed."
+                data.get("message") or data.get("reason") or data.get("detail") or data.get("error") or "CamerPay initiation failed."
             ).strip()
         else:
-            error = "CamerPay initiation failed."
+            error = f"CamerPay initiation failed. Raw response: {response.text[:500]}"
 
     logger.info(
-        "camerpay_initiate_response invoice_id=%s status_code=%s ok=%s transaction_uuid=%s provider_status=%s",
-        invoice_id,
-        response.status_code,
-        ok,
-        transaction_uuid,
-        status,
+        "camerpay_initiate_response details=%s",
+        json.dumps({
+            "invoice_id": invoice_id,
+            "url": request_url,
+            "http_status": response.status_code,
+            "ok": ok,
+            "transaction_uuid": transaction_uuid,
+            "pay_url_provided": bool(pay_url),
+            "provider_status": status,
+            "error": error,
+            "response_body_preview": str(data)[:500] if data else response.text[:500],
+        }, default=str),
     )
 
     return {
