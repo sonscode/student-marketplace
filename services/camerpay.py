@@ -359,15 +359,29 @@ def verify_webhook_signature(payload: dict[str, Any], callback_secret: str) -> d
     invoice_id = str(payload.get("invoice_id") or "").strip()
     status = str(payload.get("status") or "").strip()
     raw_amount = str(payload.get("amount") or "").strip()
-    amount = raw_amount.split(".")[0] if "." in raw_amount else raw_amount
 
-    message = "|".join((transaction_uuid, invoice_id, status, amount))
+    # Use the exact raw amount string as received — do NOT strip decimals.
+    message = "|".join((transaction_uuid, invoice_id, status, raw_amount))
     expected = hmac.new(
         callback_secret.encode("utf-8"),
         message.encode("utf-8"),
         hashlib.sha256,
     ).hexdigest()
     provided = signature.removeprefix("sha256=").strip()
+
+    # Temporary debug logging — log the signed message and signature prefixes
+    # but NEVER log the secret.
+    logger.warning(
+        "verify_webhook_signature_debug transaction_uuid=%s invoice_id=%s status=%s "
+        "raw_amount=%s message=%s expected_prefix=%s provided_prefix=%s",
+        transaction_uuid,
+        invoice_id,
+        status,
+        raw_amount,
+        message,
+        expected[:12],
+        provided[:12],
+    )
 
     if not hmac.compare_digest(expected, provided):
         return {"ok": False, "error": "Invalid CamerPay webhook signature."}

@@ -22,6 +22,7 @@ from dotenv import load_dotenv
 import cloudinary
 import cloudinary.uploader
 from services import camerpay as campay
+from apscheduler.schedulers.background import BackgroundScheduler
 
 load_dotenv()
 
@@ -3030,9 +3031,143 @@ def admin_delete_all_listings():
     return redirect(url_for("admin_panel"))
 
 
+# ---------------------------------------------------------------------------
+# Background status poller: periodically checks pending payments against the
+# CamerPay status API to activate boosts even when the webhook is lost.
+# ---------------------------------------------------------------------------
+POLL_INTERVAL_SECONDS = env_int("POLL_INTERVAL_SECONDS", 10)
+
+
+def poll_pending_payments_periodic():
+    """Query all pending payments that have a provider_reference and check their
+    status via the CamerPay API. This is the fallback for webhooks that never
+    arrive (e.g. network issues on CamerPay's side or the user's phone).
+
+    Runs in a background thread managed by APScheduler.
+    """
+    conn = None
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+
+        # Only check payments that are still PENDING, have a provider reference
+        # to query, and were created within the last 5 minutes (avoids polling
+        # payments that are already stale or will be expired by the TTL).
+        cutoff = (datetime.utcnow() - timedelta(seconds=PAYMENT_PENDING_TTL_SECONDS)).isoformat(timespec="seconds")
+        cursor.execute(
+            """
+            SELECT p.id, p.listing_id, p.reference AS reference_id, p.provider_reference,
+                   p.amount, p.status, p.phone, p.created_at,
+                   l.owner_phone, l.is_featured
+            FROM payments p
+            JOIN listings l ON l.id = p.listing_id
+            WHERE p.status = ?
+              AND p.provider_reference IS NOT NULL
+              AND TRIM(p.provider_reference) != ''
+              AND p.created_at >= ?
+            ORDER BY p.id ASC
+            """,
+            (PAYMENT_STATUS_PENDING, cutoff),
+        )
+        pending_payments = cursor.fetchall()
+
+        if not pending_payments:
+            conn.close()
+            return
+
+        app.logger.info(
+            "poller_tick pending_count=%d",
+            len(pending_payments),
+        )
+
+        for payment_row in pending_payments:
+            provider_reference = str(payment_row["provider_reference"] or "").strip()
+            if not provider_reference:
+                continue
+
+            try:
+                status_result = campay.get_transaction_status(provider_reference)
+            except Exception as exc:
+                app.logger.error(
+                    "poller_status_error payment_id=%d provider_ref=%s error=%s",
+                    payment_row["id"],
+                    provider_reference,
+                    str(exc),
+                )
+                continue
+
+            provider_status = resolve_internal_payment_status(status_result.get("status"))
+            if not provider_status and isinstance(status_result.get("data"), dict):
+                provider_status = resolve_internal_payment_status(status_result["data"].get("status"))
+
+            if not provider_status or provider_status == PAYMENT_STATUS_PENDING:
+                continue
+
+            log_payment_event(
+                "poller_status_resolved",
+                payment_id=payment_row["id"],
+                local_ref=get_payment_local_reference(payment_row),
+                provider_ref=provider_reference,
+                ok=bool(status_result.get("ok")),
+                status_code=status_result.get("status_code"),
+                provider_status=provider_status,
+            )
+
+            current_status = resolve_internal_payment_status(payment_row["status"]) or PAYMENT_STATUS_PENDING
+            if current_status == PAYMENT_STATUS_SUCCESSFUL and payment_row["is_featured"] == 1:
+                continue
+
+            if provider_status == PAYMENT_STATUS_SUCCESSFUL:
+                apply_successful_payment(cursor, payment_row)
+            else:
+                apply_payment_status_transition(
+                    cursor,
+                    payment_row["id"],
+                    current_status,
+                    provider_status,
+                )
+
+            conn.commit()
+
+        conn.close()
+
+    except Exception as exc:
+        app.logger.error("poller_unhandled_error error=%s", str(exc))
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+_scheduler = BackgroundScheduler()
+
+
+def _start_status_poller():
+    """Start the background status poller. Safe to call multiple times — the
+    scheduler will only be started once.
+    """
+    if _scheduler.running:
+        return
+
+    _scheduler.add_job(
+        poll_pending_payments_periodic,
+        "interval",
+        seconds=POLL_INTERVAL_SECONDS,
+        id="camerpay_status_poller",
+        replace_existing=True,
+        max_instances=1,
+    )
+    _scheduler.start()
+    app.logger.info(
+        "status_poller_started interval=%ds",
+        POLL_INTERVAL_SECONDS,
+    )
+
+
+# Ensure the poller starts once the app is fully configured.
+_start_status_poller()
+
+
 if __name__ == "__main__":
     app.run(debug=env_flag("FLASK_DEBUG"))
-
-# boost_amount
-# reference_id
-#
