@@ -2364,6 +2364,120 @@ def initiate_listing_boost(listing_id):
     )
 
 
+@app.route("/payments/recover/<reference_id>", methods=["POST"])
+@login_required
+def recover_listing_payment(reference_id):
+    """Attempt to recover a payment by querying the CamerPay status endpoint.
+
+    Use this when the webhook was missed or delayed. If CamerPay confirms the
+    payment is completed, the local payment record is updated and the listing
+    boost is activated. The operation is idempotent.
+
+    The recover button is only available on listings that are not yet featured
+    but have a pending payment with a provider_reference.
+    """
+    conn = get_db()
+    cursor = conn.cursor()
+    owner_phone = get_authenticated_owner_phone()
+
+    if not owner_phone:
+        conn.close()
+        flash("You are not authorized to recover this payment.", "error")
+        return redirect(url_for("dashboard"))
+
+    payment = get_payment_for_owner(cursor, reference_id, owner_phone)
+    if payment is None:
+        conn.close()
+        flash("Payment not found or not allowed.", "error")
+        return redirect(url_for("dashboard"))
+
+    listing_id = payment["listing_id"]
+    next_url = url_for("listing_detail", id=listing_id)
+
+    # Idempotent: if already successful and featured, just confirm.
+    current_status = resolve_internal_payment_status(payment["status"]) or PAYMENT_STATUS_PENDING
+    if current_status == PAYMENT_STATUS_SUCCESSFUL and payment["is_featured"] == 1:
+        conn.close()
+        flash("Payment already confirmed and listing is featured.", "success")
+        return redirect(next_url)
+
+    provider_reference = get_payment_provider_reference(payment)
+    if not provider_reference:
+        conn.close()
+        flash("No provider reference stored. Cannot attempt recovery.", "error")
+        return redirect(next_url)
+
+    log_payment_event(
+        "recovery_attempt",
+        payment_id=payment["id"],
+        local_ref=get_payment_local_reference(payment),
+        provider_ref=provider_reference,
+        current_status=current_status,
+    )
+
+    # Query CamerPay for the actual transaction status.
+    status_result = campay.get_transaction_status(provider_reference)
+    provider_status = resolve_internal_payment_status(status_result.get("status"))
+    if not provider_status and isinstance(status_result.get("data"), dict):
+        provider_status = resolve_internal_payment_status(status_result["data"].get("status"))
+
+    log_payment_event(
+        "recovery_status_response",
+        payment_id=payment["id"],
+        local_ref=get_payment_local_reference(payment),
+        provider_ref=provider_reference,
+        provider_status=provider_status or status_result.get("status"),
+        ok=bool(status_result.get("ok")),
+        status_code=status_result.get("status_code"),
+        network_error=bool(status_result.get("network_error")),
+    )
+
+    # Network failure — cannot determine status.
+    if status_result.get("network_error"):
+        conn.close()
+        flash("Could not reach CamerPay right now. Please try again in a moment.", "error")
+        return redirect(next_url)
+
+    # No clear status returned — treat as indeterminate.
+    if not provider_status:
+        conn.close()
+        flash("Could not determine payment status from CamerPay. Please try again.", "error")
+        return redirect(next_url)
+
+    # Update the local payment record.
+    apply_payment_status_transition(
+        cursor,
+        payment["id"],
+        current_status,
+        provider_status,
+    )
+
+    if provider_status == PAYMENT_STATUS_SUCCESSFUL:
+        payment = get_payment_by_id(cursor, payment["id"])
+        apply_successful_payment(cursor, payment)
+        conn.commit()
+        conn.close()
+        flash("Payment confirmed. Your listing is now featured.", "success")
+        return redirect(next_url)
+
+    conn.commit()
+    conn.close()
+
+    # Provide user feedback for non-success outcomes.
+    if provider_status == PAYMENT_STATUS_PENDING:
+        flash("Payment is still pending on CamerPay. Please wait a moment and try again.", "info")
+    elif provider_status == PAYMENT_STATUS_CANCELLED:
+        flash("Payment was cancelled. Please start a new boost request.", "error")
+    elif provider_status == PAYMENT_STATUS_REJECTED:
+        flash("Payment was rejected. Please try a new boost request.", "error")
+    elif provider_status == PAYMENT_STATUS_EXPIRED:
+        flash("Payment has expired. Please start a new boost request.", "error")
+    else:
+        flash(f"Payment status: {provider_status}. Please try again.", "error")
+
+    return redirect(next_url)
+
+
 @app.route("/payments/verify/<reference_id>")
 @login_required
 def verify_listing_payment(reference_id):
