@@ -2348,12 +2348,17 @@ def initiate_listing_boost(listing_id):
     if is_direct_method:
         ussd_code = "*126#" if payment_method == "mtn_momo" else "#157#"
         flash(
-            f"Payment request sent to your phone. Please approve the prompt on your device. "
-            f"If you do not see a prompt, dial {ussd_code} to complete the payment.",
+            f"✅ Payment request sent to your phone number ending in ***{collect_phone[-4:]}. "
+            f"Approve the prompt on your phone to complete payment. "
+            f"If you don't see a prompt, dial {ussd_code} to complete.",
             "success",
         )
     else:
-        flash("Payment initiated. Use the verification page to check payment status.", "success")
+        flash(
+            "⚡ Payment initiated. Check the status below — once CamerPay confirms completion, "
+            "your listing will be featured automatically.",
+            "success",
+        )
 
     return redirect(
         url_for(

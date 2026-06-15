@@ -470,13 +470,13 @@
                                 {% if item['is_featured'] == 1 %}
                                     <span class="link-btn">Featured Active</span>
                                 {% else %}
-                                    <form method="POST" action="{{ url_for('initiate_listing_boost', listing_id=item['id']) }}">
-                                        <input type="hidden" name="next" value="{{ url_for('dashboard') }}">
-                                        <button class="link-btn" type="submit">Boost ({{ boost_amount }} XAF)</button>
-                                    </form>
+                                    <a class="link-btn" href="{{ url_for('select_boost_payment', listing_id=item['id'], next=url_for('dashboard')) }}">Boost ({{ boost_amount }} XAF)</a>
                                 {% endif %}
                                 {% if item['pending_payment_reference'] %}
                                     <a class="link-btn" href="{{ url_for('verify_listing_payment', reference_id=item['pending_payment_reference'], next=url_for('dashboard')) }}">Check Payment</a>
+                                    <form method="POST" action="{{ url_for('recover_listing_payment', reference_id=item['pending_payment_reference']) }}" style="display:inline;">
+                                        <button class="link-btn" type="submit" onclick="return confirm('This will check your payment status with CamerPay. If the payment is already completed, your listing will be featured. Continue?');">Recover Payment</button>
+                                    </form>
                                 {% endif %}
                                 <form method="POST" action="{{ url_for('delete_listing', id=item['id']) }}" onsubmit="return confirm('Are you sure you want to delete this listing?');">
                                     <button class="danger-btn" type="submit">Delete</button>
