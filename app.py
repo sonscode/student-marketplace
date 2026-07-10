@@ -393,9 +393,10 @@ REPORT_REASONS = (
     "Other",
 )
 REPORT_COMMENT_MAX_LENGTH = 500
-# Pending payments should not lock listings forever.
-# Default TTL: 120s (2 minutes) unless overridden by env.
-PAYMENT_PENDING_TTL_SECONDS = env_int("PAYMENT_PENDING_TTL_SECONDS", 120)
+# Pending payments should stay recoverable long enough for CamerPay reconciliation.
+# Default TTL: 300s (5 minutes) unless overridden by env.
+PAYMENT_PENDING_TTL_SECONDS = max(env_int("PAYMENT_PENDING_TTL_SECONDS", 300), 300)
+POLL_INTERVAL_SECONDS = env_int("POLL_INTERVAL_SECONDS", 30)
 
 def effective_boost_amount() -> int:
     return BOOST_LISTING_AMOUNT
@@ -411,6 +412,51 @@ PAYMENT_STATUS_EXPIRED = "EXPIRED"
 
 def normalize_payment_status(status):
     return (status or "").strip().upper()
+
+
+def build_payment_status_view(payment_row):
+    status = resolve_internal_payment_status(payment_row.get("status")) or PAYMENT_STATUS_PENDING
+    is_featured = bool(payment_row.get("is_featured"))
+    provider_reference = str(payment_row.get("provider_reference") or "").strip()
+
+    if status == PAYMENT_STATUS_SUCCESSFUL or is_featured:
+        return {
+            "state": "featured",
+            "title": "Payment confirmed",
+            "message": "Your payment was completed and your listing is now featured.",
+            "show_recovery_action": False,
+            "show_waiting_message": False,
+            "is_terminal": True,
+        }
+
+    if status in {PAYMENT_STATUS_FAILED, PAYMENT_STATUS_CANCELLED, PAYMENT_STATUS_REJECTED, PAYMENT_STATUS_EXPIRED}:
+        return {
+            "state": "failed",
+            "title": "Payment did not complete",
+            "message": "Payment did not complete successfully. Please start a new boost request if you want to try again.",
+            "show_recovery_action": False,
+            "show_waiting_message": False,
+            "is_terminal": True,
+        }
+
+    if provider_reference:
+        return {
+            "state": "pending",
+            "title": "Payment is still being confirmed",
+            "message": "We are still waiting for CamerPay to confirm your payment. We will keep checking automatically for up to five minutes after you started the boost.",
+            "show_recovery_action": True,
+            "show_waiting_message": True,
+            "is_terminal": False,
+        }
+
+    return {
+        "state": "unverified",
+        "title": "Payment needs attention",
+        "message": "We could not find a CamerPay reference to verify this payment. Please start a new boost request if needed.",
+        "show_recovery_action": False,
+        "show_waiting_message": False,
+        "is_terminal": False,
+    }
 
 
 def payment_next_url(default_url):
@@ -2036,10 +2082,16 @@ def listing_detail(id):
 
     can_manage = bool(user_phone and (item["owner_phone"] or "") == user_phone)
     pending_payment_reference = ""
+    pending_payment_view = None
     if can_manage:
         pending_payment = get_pending_payment_for_listing(cursor, id)
         if pending_payment:
             pending_payment_reference = pending_payment["reference_id"]
+            pending_payment_view = build_payment_status_view({
+                "status": pending_payment["status"],
+                "is_featured": item["is_featured"],
+                "provider_reference": pending_payment.get("provider_reference", ""),
+            })
 
     cursor.execute(
         """
@@ -2088,6 +2140,7 @@ def listing_detail(id):
         related_items=related_items,
         can_manage=can_manage,
         pending_payment_reference=pending_payment_reference,
+        pending_payment_view=pending_payment_view,
         boost_amount=effective_boost_amount(),
         report_reasons=REPORT_REASONS,
         report_comment_max_length=REPORT_COMMENT_MAX_LENGTH,
@@ -2397,14 +2450,13 @@ def recover_listing_payment(reference_id):
         return redirect(url_for("dashboard"))
 
     listing_id = payment["listing_id"]
-    next_url = url_for("listing_detail", id=listing_id)
+    next_url = sanitize_next_url(request.form.get("next") or request.args.get("next") or url_for("listing_detail", id=listing_id))
 
     # Idempotent: if already successful and featured, just confirm.
     current_status = resolve_internal_payment_status(payment["status"]) or PAYMENT_STATUS_PENDING
     if current_status == PAYMENT_STATUS_SUCCESSFUL and payment["is_featured"] == 1:
         conn.close()
-        flash("Payment already confirmed and listing is featured.", "success")
-        return redirect(next_url)
+        return redirect(url_for("verify_listing_payment", reference_id=reference_id, next=next_url))
 
     provider_reference = get_payment_provider_reference(payment)
     if not provider_reference:
@@ -2440,14 +2492,12 @@ def recover_listing_payment(reference_id):
     # Network failure — cannot determine status.
     if status_result.get("network_error"):
         conn.close()
-        flash("Could not reach CamerPay right now. Please try again in a moment.", "error")
-        return redirect(next_url)
+        return redirect(url_for("verify_listing_payment", reference_id=reference_id, next=next_url))
 
     # No clear status returned — treat as indeterminate.
     if not provider_status:
         conn.close()
-        flash("Could not determine payment status from CamerPay. Please try again.", "error")
-        return redirect(next_url)
+        return redirect(url_for("verify_listing_payment", reference_id=reference_id, next=next_url))
 
     # Update the local payment record.
     apply_payment_status_transition(
@@ -2462,25 +2512,11 @@ def recover_listing_payment(reference_id):
         apply_successful_payment(cursor, payment)
         conn.commit()
         conn.close()
-        flash("Payment confirmed. Your listing is now featured.", "success")
-        return redirect(next_url)
+        return redirect(url_for("verify_listing_payment", reference_id=reference_id, next=next_url))
 
     conn.commit()
     conn.close()
-
-    # Provide user feedback for non-success outcomes.
-    if provider_status == PAYMENT_STATUS_PENDING:
-        flash("Payment is still pending on CamerPay. Please wait a moment and try again.", "info")
-    elif provider_status == PAYMENT_STATUS_CANCELLED:
-        flash("Payment was cancelled. Please start a new boost request.", "error")
-    elif provider_status == PAYMENT_STATUS_REJECTED:
-        flash("Payment was rejected. Please try a new boost request.", "error")
-    elif provider_status == PAYMENT_STATUS_EXPIRED:
-        flash("Payment has expired. Please start a new boost request.", "error")
-    else:
-        flash(f"Payment status: {provider_status}. Please try again.", "error")
-
-    return redirect(next_url)
+    return redirect(url_for("verify_listing_payment", reference_id=reference_id, next=next_url))
 
 
 @app.route("/payments/verify/<reference_id>")
@@ -2501,8 +2537,8 @@ def verify_listing_payment(reference_id):
         flash("Payment not found or not allowed.", "error")
         return redirect(url_for("dashboard"))
 
-    listing_url = url_for("listing_detail", id=payment["listing_id"])
-    next_url = payment_next_url(listing_url)
+    listing_url = request.args.get("next") or url_for("listing_detail", id=payment["listing_id"])
+    next_url = sanitize_next_url(listing_url)
 
     expire_stale_pending_payments(cursor, payment["listing_id"])
     payment = get_payment_for_owner(cursor, reference_id, owner_phone)
@@ -2512,10 +2548,21 @@ def verify_listing_payment(reference_id):
         return redirect(url_for("dashboard"))
 
     current_status = resolve_internal_payment_status(payment["status"]) or PAYMENT_STATUS_PENDING
+    payment_view = build_payment_status_view({
+        "status": payment["status"],
+        "is_featured": payment["is_featured"],
+        "provider_reference": get_payment_provider_reference(payment),
+    })
+
     if current_status == PAYMENT_STATUS_SUCCESSFUL and payment["is_featured"] == 1:
         conn.close()
-        flash("Payment already confirmed. Listing is featured.", "success")
-        return redirect(next_url)
+        return render_template(
+            "payment_status.html",
+            payment=payment,
+            payment_view=payment_view,
+            next_url=next_url,
+            listing_id=payment["listing_id"],
+        )
 
     provider_reference = get_payment_provider_reference(payment)
     if not provider_reference:
@@ -2527,8 +2574,18 @@ def verify_listing_payment(reference_id):
         )
         conn.commit()
         conn.close()
-        flash("This payment could not be verified. Please try boosting again.", "error")
-        return redirect(next_url)
+        payment_view = build_payment_status_view({
+            "status": PAYMENT_STATUS_FAILED,
+            "is_featured": 0,
+            "provider_reference": "",
+        })
+        return render_template(
+            "payment_status.html",
+            payment=payment,
+            payment_view=payment_view,
+            next_url=next_url,
+            listing_id=payment["listing_id"],
+        )
 
     log_payment_event(
         "verify_request",
@@ -2553,18 +2610,22 @@ def verify_listing_payment(reference_id):
         network_error=bool(status_result.get("network_error")),
     )
 
-    if status_result.get("network_error"):
-        conn.close()
-        flash("We could not confirm the payment right now. Please try again.", "error")
-        return redirect(next_url)
-
-    if not provider_status:
+    if status_result.get("network_error") or not provider_status:
         if status_result.get("status_code", 0) > 0:
             provider_status = PAYMENT_STATUS_FAILED
         else:
             conn.close()
-            flash("We could not confirm the payment right now. Please try again.", "error")
-            return redirect(next_url)
+            return render_template(
+                "payment_status.html",
+                payment=payment,
+                payment_view=build_payment_status_view({
+                    "status": current_status,
+                    "is_featured": payment["is_featured"],
+                    "provider_reference": provider_reference,
+                }),
+                next_url=next_url,
+                listing_id=payment["listing_id"],
+            )
 
     payload = status_result.get("data")
     if isinstance(payload, dict):
@@ -2583,21 +2644,31 @@ def verify_listing_payment(reference_id):
         apply_successful_payment(cursor, payment)
         conn.commit()
         conn.close()
-        flash("Payment successful. Your listing is now featured.", "success")
-        return redirect(next_url)
+        return render_template(
+            "payment_status.html",
+            payment=payment,
+            payment_view=build_payment_status_view({
+                "status": PAYMENT_STATUS_SUCCESSFUL,
+                "is_featured": 1,
+                "provider_reference": provider_reference,
+            }),
+            next_url=next_url,
+            listing_id=payment["listing_id"],
+        )
 
     conn.commit()
     conn.close()
-
-    if provider_status == PAYMENT_STATUS_PENDING:
-        flash("Payment is still pending. Complete the prompt on your phone, then verify again.", "info")
-    elif provider_status in {PAYMENT_STATUS_CANCELLED, PAYMENT_STATUS_REJECTED}:
-        flash("Payment was cancelled or rejected. You can try boosting again to start a new request.", "error")
-    elif provider_status == PAYMENT_STATUS_EXPIRED:
-        flash("Payment expired. Please start a new boost request.", "error")
-    else:
-        flash(payment_provider_feedback(status_result, "Payment failed."), "error")
-    return redirect(next_url)
+    return render_template(
+        "payment_status.html",
+        payment=payment,
+        payment_view=build_payment_status_view({
+            "status": provider_status,
+            "is_featured": payment["is_featured"],
+            "provider_reference": provider_reference,
+        }),
+        next_url=next_url,
+        listing_id=payment["listing_id"],
+    )
 
 
 def mock_payment_redirect_url(payment):
@@ -3154,7 +3225,7 @@ def admin_delete_all_listings():
 # Background status poller: periodically checks pending payments against the
 # CamerPay status API to activate boosts even when the webhook is lost.
 # ---------------------------------------------------------------------------
-POLL_INTERVAL_SECONDS = env_int("POLL_INTERVAL_SECONDS", 10)
+POLL_INTERVAL_SECONDS = env_int("POLL_INTERVAL_SECONDS", 30)
 
 
 def poll_pending_payments_periodic():
