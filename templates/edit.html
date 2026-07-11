@@ -258,6 +258,8 @@
             <h1>Edit Listing</h1>
             <p class="subtitle">Update the fields below and save your changes.</p>
 
+            {% include "_flash_messages.html" %}
+
             {% if form_errors %}
                 <div class="inline-errors" role="alert">
                     <p>Please fix the following:</p>

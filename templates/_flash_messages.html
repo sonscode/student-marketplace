@@ -1,0 +1,13 @@
+{% with flashed_messages = get_flashed_messages(with_categories=true) %}
+    {% if flashed_messages %}
+        <section class="flash-stack{% if flash_stack_class is defined and flash_stack_class %} {{ flash_stack_class }}{% endif %}" aria-live="polite">
+            {% for category, message in flashed_messages %}
+                {% set flash_category = "warning" if category in ["warn", "warning"] else category %}
+                {% if flash_category not in ["success", "error", "warning", "info"] %}
+                    {% set flash_category = "info" %}
+                {% endif %}
+                <p class="flash {{ flash_category }}"{% if flash_category == "error" %} role="alert"{% else %} role="status"{% endif %}>{{ message }}</p>
+            {% endfor %}
+        </section>
+    {% endif %}
+{% endwith %}

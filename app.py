@@ -429,11 +429,41 @@ def build_payment_status_view(payment_row):
             "is_terminal": True,
         }
 
-    if status in {PAYMENT_STATUS_FAILED, PAYMENT_STATUS_CANCELLED, PAYMENT_STATUS_REJECTED, PAYMENT_STATUS_EXPIRED}:
+    if status == PAYMENT_STATUS_FAILED:
         return {
             "state": "failed",
             "title": "Payment did not complete",
-            "message": "Payment did not complete successfully. Please start a new boost request if you want to try again.",
+            "message": "Payment did not complete. Start a new boost request when you are ready to try again.",
+            "show_recovery_action": False,
+            "show_waiting_message": False,
+            "is_terminal": True,
+        }
+
+    if status == PAYMENT_STATUS_CANCELLED:
+        return {
+            "state": "failed",
+            "title": "Payment was cancelled",
+            "message": "Payment did not complete because it was cancelled. Start a new boost request if you still want to feature this listing.",
+            "show_recovery_action": False,
+            "show_waiting_message": False,
+            "is_terminal": True,
+        }
+
+    if status == PAYMENT_STATUS_REJECTED:
+        return {
+            "state": "failed",
+            "title": "Payment was rejected",
+            "message": "Payment did not complete because it was rejected or declined. Check your mobile money account, then start a new boost request to try again.",
+            "show_recovery_action": False,
+            "show_waiting_message": False,
+            "is_terminal": True,
+        }
+
+    if status == PAYMENT_STATUS_EXPIRED:
+        return {
+            "state": "failed",
+            "title": "Payment expired",
+            "message": "Payment did not complete before the request expired. Start a new boost request when you are ready to try again.",
             "show_recovery_action": False,
             "show_waiting_message": False,
             "is_terminal": True,
@@ -765,22 +795,24 @@ def resolve_internal_payment_status(provider_status):
 
 
 def payment_provider_feedback(result, default_message):
-    payload = result.get("data")
-    if isinstance(payload, dict):
-        reason = str(
-            payload.get("message")
-            or payload.get("reason")
-            or payload.get("detail")
-            or ""
-        ).strip()
-        if reason:
-            return f"{default_message} ({reason})"
+    try:
+        status_code = int(result.get("status_code") or 0)
+    except (TypeError, ValueError):
+        status_code = 0
 
-    provider_error = str(result.get("error") or "").strip()
-    if provider_error:
-        return f"{default_message} ({provider_error})"
+    if result.get("network_error"):
+        return "Payment service is temporarily unavailable. Please try again."
 
-    return default_message
+    if status_code in {401, 403}:
+        return "Payment service is temporarily unavailable. Please try again later."
+
+    if status_code >= 500:
+        return "Payment provider is temporarily unavailable. Please try again."
+
+    friendly_message = (default_message or "Payment request could not be sent.").strip()
+    if not friendly_message.endswith("."):
+        friendly_message += "."
+    return f"{friendly_message} Please try again."
 
 
 def resolve_collect_phone(listing_phone, owner_phone):
@@ -1906,11 +1938,9 @@ def add_listing():
     description = validated["description"]
     try:
         image_url = upload_listing_image(image)
-    except Exception as e:
-        # app.logger.exception("Cloudinary upload failed for listing image.")
-        # return render_create_errors(["Image upload failed. Please try again."])
-        print("CLOUDINARY ERROR:", e)
-        flash(f"Image upload failed: {e}")
+    except Exception:
+        app.logger.exception("Cloudinary upload failed for listing image.")
+        return render_create_errors(["Image upload failed. Please try again."])
     is_featured = 0
 
     cursor.execute(
@@ -2383,7 +2413,7 @@ def initiate_listing_boost(listing_id):
         if "recent" in campay_error or "duplicate" in campay_error or status_code == 409:
             flash(
                 "A recent payment request was detected. Please wait a moment before trying again.",
-                "warn",
+                "warning",
             )
         elif network_error:
             flash(
@@ -2391,11 +2421,11 @@ def initiate_listing_boost(listing_id):
                 "error",
             )
         elif "rejected" in campay_error or "declined" in campay_error:
-            flash("Payment was rejected.", "error")
+            flash("Payment was rejected. Check your mobile money account, then try again.", "error")
         elif "cancelled" in campay_error or "cancel" in campay_error:
-            flash("Payment was cancelled.", "error")
+            flash("Payment was cancelled. Start a new boost request when you are ready to try again.", "error")
         elif "timeout" in campay_error or "expired" in campay_error or "timed" in campay_error:
-            flash("Payment request timed out. Please try again.", "error")
+            flash("Payment request timed out. Start a new boost request to try again.", "error")
         else:
             flash(payment_provider_feedback(campay_result, "Payment request could not be sent."), "error")
 
@@ -2506,11 +2536,13 @@ def recover_listing_payment(reference_id):
     # Network failure — cannot determine status.
     if status_result.get("network_error"):
         conn.close()
+        flash("We could not reach CamerPay right now. Please wait a moment and check again.", "warning")
         return redirect(url_for("verify_listing_payment", reference_id=reference_id, next=next_url))
 
     # No clear status returned — treat as indeterminate.
     if not provider_status:
         conn.close()
+        flash("We could not confirm your payment status yet. Please wait a moment and check again.", "warning")
         return redirect(url_for("verify_listing_payment", reference_id=reference_id, next=next_url))
 
     # Update the local payment record.

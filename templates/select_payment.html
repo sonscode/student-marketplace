@@ -159,15 +159,7 @@
             <a class="back" href="{{ url_for('listing_detail', id=listing_id) }}">⬅ Back</a>
         </div>
 
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                <section class="flash-stack" style="margin-bottom:14px" aria-live="polite">
-                    {% for category, message in messages %}
-                        <p class="flash {{ category }}">{{ message }}</p>
-                    {% endfor %}
-                </section>
-            {% endif %}
-        {% endwith %}
+        {% include "_flash_messages.html" %}
 
         <div class="card" style="display:grid;gap:18px">
             <div>

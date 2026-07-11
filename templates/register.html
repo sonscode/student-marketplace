@@ -206,6 +206,8 @@
             <h1>Create Account</h1>
             <p class="subtitle">Start by creating your account. Login can come next.</p>
 
+            {% include "_flash_messages.html" %}
+
             {% if error %}
                 <div class="msg error">{{ error }}</div>
             {% endif %}

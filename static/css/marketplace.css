@@ -257,10 +257,21 @@ input[type="file"] {
     color: #334155;
 }
 
+.flash-stack {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
 .flash,
 .msg,
 .inline-errors {
+    border: 1px solid var(--line);
     border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    font-size: 0.9rem;
+    background: #ffffff;
+    margin: 0;
 }
 
 .flash.success,

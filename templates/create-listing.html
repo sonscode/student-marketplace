@@ -249,6 +249,8 @@
             <p class="subtitle">Fill in the details below to publish your item.</p>
             {% set data = form_data or {} %}
 
+            {% include "_flash_messages.html" %}
+
             {% if form_errors %}
                 <div class="inline-errors" role="alert">
                     <p>Please fix the following:</p>

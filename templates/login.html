@@ -193,6 +193,8 @@
             <h1>Login</h1>
             <p class="subtitle">Sign in to manage your listings.</p>
 
+            {% include "_flash_messages.html" %}
+
             {% if error %}
                 <div class="msg">{{ error }}</div>
             {% endif %}

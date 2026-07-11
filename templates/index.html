@@ -494,15 +494,7 @@
             <p class="auth-status">You are browsing as a guest. Login to create listings and manage your own posts.</p>
         {% endif %}
 
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                <section class="flash-stack">
-                    {% for category, message in messages %}
-                        <p class="flash {{ category }}">{{ message }}</p>
-                    {% endfor %}
-                </section>
-            {% endif %}
-        {% endwith %}
+        {% include "_flash_messages.html" %}
 
         <section class="controls">
             <form class="search" action="/" method="get">

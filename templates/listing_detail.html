@@ -545,15 +545,9 @@
             <p class="auth-status">Browsing as guest. Login to manage your own listings.</p>
         {% endif %}
 
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                <section class="flash-stack floating" aria-live="polite">
-                    {% for category, message in messages %}
-                        <p class="flash {{ category }}">{{ message }}</p>
-                    {% endfor %}
-                </section>
-            {% endif %}
-        {% endwith %}
+        {% set flash_stack_class = "floating" %}
+        {% include "_flash_messages.html" %}
+        {% set flash_stack_class = "" %}
 
         <article class="card">
             <h1 class="title">{{ item['title'] }}</h1>

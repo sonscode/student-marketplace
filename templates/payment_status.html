@@ -25,15 +25,22 @@
 </head>
 <body>
     <main class="page">
+        {% include "_flash_messages.html" %}
+
         <div class="card">
             <div class="state-badge {{ payment_view['state'] }}">{{ payment_view['title'] }}</div>
             <h1 style="margin:0; font-size:1.35rem;">Boost Payment Status</h1>
             <p class="muted">{{ payment_view['message'] }}</p>
 
             <div class="actions">
-                <form method="POST" action="{{ url_for('recover_listing_payment', reference_id=payment['reference_id']) }}">
-                    <button class="btn primary" type="submit">Check Payment Status</button>
-                </form>
+                {% if payment_view['show_recovery_action'] %}
+                    <form method="POST" action="{{ url_for('recover_listing_payment', reference_id=payment['reference_id']) }}">
+                        <button class="btn primary" type="submit">Check Payment Status</button>
+                    </form>
+                {% endif %}
+                {% if payment_view['state'] == 'failed' %}
+                    <a class="btn primary" href="{{ url_for('select_boost_payment', listing_id=listing_id, next=next_url) }}">Start New Boost</a>
+                {% endif %}
                 <a class="btn" href="{{ next_url }}">Return to Listing</a>
             </div>
 
