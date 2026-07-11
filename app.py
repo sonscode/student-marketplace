@@ -38,7 +38,7 @@ else:
 
 # Exceptions for image file
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
-
+# resolve_internal_payment_status
 def allowed_file(filename):
 
     return (
@@ -732,12 +732,26 @@ def development_only(view_func):
 
 
 def resolve_internal_payment_status(provider_status):
+    """Normalize a provider status string to an internal payment status.
+
+    Maps CamerPay (and generic) status strings to canonical internal values:
+      PENDING / INITIATED / PROCESSING  → PAYMENT_STATUS_PENDING
+      SUCCESS / SUCCESSFUL / COMPLETED  → PAYMENT_STATUS_SUCCESSFUL
+      CANCEL / CANCELED / CANCELLED     → PAYMENT_STATUS_CANCELLED
+      REJECTED / DENIED / DECLINED      → PAYMENT_STATUS_REJECTED
+      EXPIRED / TIMEOUT / TIMED_OUT     → PAYMENT_STATUS_EXPIRED
+      FAIL / FAILED / ERROR             → PAYMENT_STATUS_FAILED
+
+    Logs the raw and normalized status for debugging.
+    """
     normalized = normalize_payment_status(provider_status)
+    app.logger.info("payment_status_normalization raw=%s normalized=%s", provider_status, normalized or "(empty)")
     if not normalized:
         return ""
     if normalized in {"PENDING", "INITIATED", "PROCESSING"}:
         return PAYMENT_STATUS_PENDING
-    if normalized in {"SUCCESS", PAYMENT_STATUS_SUCCESSFUL}:
+    if normalized in {"SUCCESS", PAYMENT_STATUS_SUCCESSFUL, "COMPLETED"}:
+        app.logger.info("payment_status_mapped_to_successful raw=%s", provider_status)
         return PAYMENT_STATUS_SUCCESSFUL
     if normalized in {"CANCEL", "CANCELED", "CANCELLED"}:
         return PAYMENT_STATUS_CANCELLED
@@ -2611,9 +2625,15 @@ def verify_listing_payment(reference_id):
     )
 
     if status_result.get("network_error") or not provider_status:
-        if status_result.get("status_code", 0) > 0:
-            provider_status = PAYMENT_STATUS_FAILED
-        else:
+        app.logger.info(
+            "verify_api_error payment_id=%d provider_ref=%s network_error=%s status_code=%s provider_status=%s — keeping current status",
+            payment["id"],
+            provider_reference,
+            bool(status_result.get("network_error")),
+            status_result.get("status_code"),
+            provider_status or "(empty)",
+        )
+        if status_result.get("network_error") or not status_result.get("status_code"):
             conn.close()
             return render_template(
                 "payment_status.html",
@@ -2626,6 +2646,27 @@ def verify_listing_payment(reference_id):
                 next_url=next_url,
                 listing_id=payment["listing_id"],
             )
+        # Has a valid HTTP response (e.g. 404, 500) — surface the status from it
+        # but do NOT force FAILED; use what the API actually returned.
+        provider_status = provider_status or PAYMENT_STATUS_PENDING
+        app.logger.info(
+            "verify_api_error_fallback payment_id=%d status_code=%s falling_back_to=%s",
+            payment["id"],
+            status_result.get("status_code"),
+            provider_status,
+        )
+        conn.close()
+        return render_template(
+            "payment_status.html",
+            payment=payment,
+            payment_view=build_payment_status_view({
+                "status": provider_status,
+                "is_featured": payment["is_featured"],
+                "provider_reference": provider_reference,
+            }),
+            next_url=next_url,
+            listing_id=payment["listing_id"],
+        )
 
     payload = status_result.get("data")
     if isinstance(payload, dict):

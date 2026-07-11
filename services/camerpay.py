@@ -293,7 +293,7 @@ def get_transaction_status(transaction_uuid: str) -> dict[str, Any]:
 
     try:
         response = requests.get(
-            _api_url(f"/payment/status/{transaction_uuid}"),
+            _api_url(f"/payment/{transaction_uuid}/status"),
             headers=_auth_headers(),
             timeout=HTTP_TIMEOUT_SECONDS,
         )
