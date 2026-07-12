@@ -17,10 +17,23 @@
         .state-badge.pending { background: #fff8e1; color: #8a5d00; }
         .state-badge.featured { background: #e8f8ee; color: #1f7a3e; }
         .state-badge.failed { background: #ffeaea; color: #a92c2c; }
+        .state-badge.unverified { background: #eff6ff; color: #1e3a8a; }
         .actions { display: flex; flex-wrap: wrap; gap: 10px; }
         .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: 12px; padding: 10px 14px; text-decoration: none; font-weight: 700; border: 1px solid var(--line); background: #fff; color: var(--text); }
         .btn.primary { background: var(--brand); color: #fff; border-color: var(--brand); }
         .muted { color: var(--muted); line-height: 1.6; }
+        .detail-grid { display: grid; gap: 8px; border: 1px solid var(--line); border-radius: 12px; background: #f8fafc; padding: 12px 14px; }
+        .detail-row { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 10px; font-size: 0.92rem; }
+        .detail-label { color: var(--muted); font-weight: 800; }
+        .detail-value { color: var(--text); overflow-wrap: anywhere; }
+        .state-note { border-radius: 12px; padding: 12px 14px; line-height: 1.6; }
+        .state-note.pending { border: 1px dashed var(--line); background: #fdfbf5; color: #6f4e15; }
+        .state-note.featured { border: 1px dashed #bbf7d0; background: #f0fdf4; color: #166534; }
+        .state-note.failed { border: 1px dashed #f3c2c2; background: #fff8f8; color: #7f1d1d; }
+        .state-note.unverified { border: 1px dashed #bfdbfe; background: #eff6ff; color: #1e3a8a; }
+        @media (max-width: 520px) {
+            .detail-row { grid-template-columns: 1fr; gap: 2px; }
+        }
     </style>
 </head>
 <body>
@@ -31,6 +44,31 @@
             <div class="state-badge {{ payment_view['state'] }}">{{ payment_view['title'] }}</div>
             <h1 style="margin:0; font-size:1.35rem;">Boost Payment Status</h1>
             <p class="muted">{{ payment_view['message'] }}</p>
+
+            <section class="detail-grid" aria-label="Payment details">
+                <div class="detail-row">
+                    <span class="detail-label">Listing</span>
+                    <span class="detail-value">{{ payment['listing_title'] or ('Listing #' ~ listing_id) }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Amount</span>
+                    <span class="detail-value">{{ payment['amount'] }} XAF</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Phone</span>
+                    <span class="detail-value">{{ payment['phone'] or payment['listing_phone'] or 'Not available' }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Reference</span>
+                    <span class="detail-value">{{ payment['reference_id'] }}</span>
+                </div>
+                {% if payment['provider_reference'] %}
+                    <div class="detail-row">
+                        <span class="detail-label">Provider Ref</span>
+                        <span class="detail-value">{{ payment['provider_reference'] }}</span>
+                    </div>
+                {% endif %}
+            </section>
 
             <div class="actions">
                 {% if payment_view['show_recovery_action'] %}
@@ -45,14 +83,26 @@
             </div>
 
             {% if payment_view['show_waiting_message'] %}
-                <div class="muted" style="border:1px dashed var(--line); border-radius:12px; padding:12px 14px; background:#fdfbf5;">
-                    We will continue checking automatically for up to five minutes after the payment was started. If CamerPay confirms the payment, your listing will be featured automatically.
+                <div class="state-note pending">
+                    Pending: keep your phone nearby and approve the mobile money prompt. Azison will keep checking automatically for up to five minutes after the payment was started.
+                </div>
+            {% endif %}
+
+            {% if payment_view['state'] == 'featured' %}
+                <div class="state-note featured">
+                    Success: payment is confirmed and the listing is marked as featured.
                 </div>
             {% endif %}
 
             {% if payment_view['state'] == 'failed' %}
-                <div class="muted" style="border:1px dashed #f3c2c2; border-radius:12px; padding:12px 14px; background:#fff8f8;">
-                    If you still want to feature the listing, start a new boost request and complete the payment again.
+                <div class="state-note failed">
+                    Failed: no boost was applied. Start a new boost request if you still want this listing featured.
+                </div>
+            {% endif %}
+
+            {% if payment_view['state'] == 'unverified' %}
+                <div class="state-note unverified">
+                    Needs attention: this payment does not have enough provider information to verify automatically. Start a new boost request if needed.
                 </div>
             {% endif %}
         </div>

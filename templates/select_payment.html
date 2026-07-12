@@ -230,7 +230,7 @@
             </p>
             {% endif %}
 
-            <div class="progress-card" id="progress-section" style="display:none">
+            <div class="progress-card" id="progress-section" style="display:none" role="status" aria-live="polite">
                 <div class="pstep active" id="step-1"><span class="pstep-num">1</span><span>Payment request sent to your phone.</span></div>
                 <div class="pstep" id="step-2"><span class="pstep-num">2</span><span>Please approve the payment prompt on your device.</span></div>
                 <div class="pstep" id="step-3"><span class="pstep-num">3</span><span>Your listing will be featured automatically.</span></div>
@@ -257,6 +257,28 @@
             var net = "{{ detected_network }}";
             if (net === "mtn") { var o = document.getElementById('opt-mtn'); if(o&&!o.classList.contains('disabled')) selectPay(o); }
             else if (net === "orange") { var o = document.getElementById('opt-orange'); if(o&&!o.classList.contains('disabled')) selectPay(o); }
+
+            var form = document.getElementById('payment-form');
+            var submit = document.getElementById('boost-submit');
+            var progress = document.getElementById('progress-section');
+            if (form && submit) {
+                form.addEventListener('submit', function(event) {
+                    if (form.dataset.submitting === 'true') {
+                        event.preventDefault();
+                        return;
+                    }
+                    form.dataset.submitting = 'true';
+                    submit.disabled = true;
+                    submit.textContent = 'Starting payment...';
+                    if (progress) {
+                        progress.style.display = 'grid';
+                        var stepOne = document.querySelector('#step-1 span:last-child');
+                        if (stepOne) {
+                            stepOne.textContent = 'Starting payment request...';
+                        }
+                    }
+                });
+            }
         });
 
         var ci = null;

@@ -246,17 +246,20 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/marketplace.css') }}">
 </head>
 <body>
+    {% include "_navigation.html" %}
     <main class="page">
-        <div class="topbar">
-            <a class="nav" href="{{ url_for('home') }}">⬅ Back to Listings</a>
-            <a class="nav" href="{{ url_for('listing_detail', id=listing['id']) }}">View Listing</a>
-        </div>
 
         <p class="auth-status">Logged in as <strong>{{ current_user['full_name'] }}</strong> ({{ current_user['email'] or current_user['phone'] }})</p>
 
         <section class="card">
             <h1>Edit Listing</h1>
             <p class="subtitle">Update the fields below and save your changes.</p>
+
+            {% if renew_mode or listing['leave_date'] < min_leave_date %}
+                <div class="auth-status" role="status">
+                    This listing has expired. Choose today or a future leaving date to renew it.
+                </div>
+            {% endif %}
 
             {% include "_flash_messages.html" %}
 
@@ -300,7 +303,8 @@
 
                 <div class="field">
                     <label for="leave_date">Leaving Date</label>
-                    <input id="leave_date" type="date" name="leave_date" value="{{ listing['leave_date'] }}" required>
+                    <input id="leave_date" type="date" name="leave_date" min="{{ min_leave_date }}" value="{{ listing['leave_date'] }}" required>
+                    <p class="field-hint">Choose today or a future date.</p>
                 </div>
 
                 <div class="field">

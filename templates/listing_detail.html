@@ -112,6 +112,11 @@
             color: var(--featured);
         }
 
+        .badge.expired {
+            background: #e2e8f0;
+            color: #475569;
+        }
+
         .hero {
             width: 100%;
             border-radius: 14px;
@@ -174,6 +179,28 @@
             color: white;
             font-weight: 700;
             background: linear-gradient(135deg, #ea6f45, var(--brand));
+        }
+
+        .cta.disabled {
+            background: #e2e8f0;
+            color: #475569;
+            cursor: not-allowed;
+        }
+
+        .expired-banner {
+            border: 1px solid #fecaca;
+            border-radius: 12px;
+            padding: 12px 14px;
+            background: #fff7f7;
+            color: #7f1d1d;
+            display: grid;
+            gap: 4px;
+        }
+
+        .expired-banner p {
+            margin: 0;
+            color: #7f1d1d;
+            line-height: 1.5;
         }
 
         .owner-actions {
@@ -533,17 +560,8 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/marketplace.css') }}">
 </head>
 <body>
+    {% include "_navigation.html" %}
     <main class="page">
-        <div class="topbar">
-            <h1 style="margin:0;font-size:clamp(1.2rem,2vw,1.5rem)"><span class="brand">AZISON</span> <span class="site-title">MARKETPLACE</span></h1>
-            <a class="back" href="{{ url_for('home', category=request.args.get('category'), search=request.args.get('search')) }}">⬅ Back to Listings</a>
-        </div>
-
-        {% if is_logged_in %}
-            <p class="auth-status">Logged in as <strong>{{ current_user['full_name'] }}</strong> ({{ current_user['email'] or current_user['phone'] }}).</p>
-        {% else %}
-            <p class="auth-status">Browsing as guest. Login to manage your own listings.</p>
-        {% endif %}
 
         {% set flash_stack_class = "floating" %}
         {% include "_flash_messages.html" %}
@@ -556,7 +574,21 @@
                 {% if item['is_featured'] == 1 %}
                     <span class="badge featured">🔥 Featured</span>
                 {% endif %}
+                {% if is_expired %}
+                    <span class="badge expired">Expired</span>
+                {% endif %}
             </div>
+
+            {% if is_expired %}
+                <section class="expired-banner" role="status">
+                    <strong>This listing has expired.</strong>
+                    {% if can_manage %}
+                        <p>Renew it by extending the leaving date before buyers can contact you from this page.</p>
+                    {% else %}
+                        <p>Contact is disabled because this item is no longer listed as available.</p>
+                    {% endif %}
+                </section>
+            {% endif %}
 
             {% if item['image'] %}
                 <a class="hero-link lightbox-trigger" href="{{ listing_image_url(item['image']) }}" title="Open full image">
@@ -612,7 +644,9 @@
 
                 <section class="owner-actions">
                     <a class="owner-link" href="{{ url_for('edit_listing', id=item['id']) }}">Edit Listing</a>
-                    {% if item['is_featured'] == 1 %}
+                    {% if is_expired %}
+                        <a class="owner-link" href="{{ url_for('edit_listing', id=item['id'], renew=1) }}">Renew / Extend Date</a>
+                    {% elif item['is_featured'] == 1 %}
                         <span class="owner-link">Featured Active</span>
                     {% else %}
                         <a class="owner-link" href="{{ url_for('select_boost_payment', listing_id=item['id']) }}">Boost ({{ boost_amount }} XAF)</a>
@@ -655,7 +689,12 @@
                 </details>
             </section>
 
-            <a class="cta" href="https://wa.me/{{ item['phone'] }}" target="_blank">Contact on WhatsApp</a>
+            {% if is_expired %}
+                <span class="cta disabled" aria-disabled="true">Contact unavailable - listing expired</span>
+            {% else %}
+                {% set wa_message = "Hi%2C%20I%27m%20interested%20in%20%22" ~ item['title'] ~ "%22%20listed%20on%20Azison%20for%20" ~ item['price'] ~ "%20XAF." %}
+                <a class="cta" href="https://wa.me/{{ item['phone'] }}?text={{ wa_message }}" target="_blank" rel="noopener">💬 Contact on WhatsApp</a>
+            {% endif %}
         </article>
 
         <section class="related-section">

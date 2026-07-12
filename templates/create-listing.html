@@ -240,8 +240,8 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/marketplace.css') }}">
 </head>
 <body>
+    {% include "_navigation.html" %}
     <main class="page">
-        <a class="back" href="{{ url_for('home') }}">⬅ Back to Listings</a>
         <p class="auth-status">Posting as <strong>{{ current_user['full_name'] }}</strong> ({{ current_user['email'] or current_user['phone'] }}).</p>
 
         <section class="card">
@@ -270,18 +270,21 @@
                     </div>
 
                     <div class="field">
-                        <label for="price">Price</label>
+                        <label for="price">Price (XAF)</label>
                         <input id="price" type="number" name="price" min="500" max="50000000" step="1" placeholder="e.g. 15000" value="{{ data.get('price', '') }}" required>
+                        <p class="field-hint">Price in XAF. Minimum 500, maximum 50,000,000.</p>
                     </div>
 
                     <div class="field">
                         <label for="phone">Phone Number</label>
                         <input id="phone" type="text" name="phone" inputmode="numeric" pattern="^[0-9+ ]{9,16}$" placeholder="e.g. 676210234 or +237676210234" value="{{ data.get('phone', user_phone or '') }}" required>
+                        <p class="field-hint">Cameroon mobile number (MTN or Orange).</p>
                     </div>
 
                     <div class="field">
                         <label for="leave_date">Leaving Date</label>
-                        <input id="leave_date" type="date" name="leave_date" value="{{ data.get('leave_date', '') }}" required>
+                        <input id="leave_date" type="date" name="leave_date" min="{{ min_leave_date }}" value="{{ data.get('leave_date', '') }}" required>
+                        <p class="field-hint">When do you leave? Must be today or later.</p>
                     </div>
 
                     <div class="field">
@@ -300,13 +303,16 @@
 
                     <div class="field">
                         <label for="image">Listing Image</label>
-                        <input id="image" type="file" name="image" accept="image/*" required>
+                        <input id="image" type="file" name="image" accept="image/*" required onchange="previewImage(this);">
                         <p class="field-hint" id="image-size-hint" style="color: var(--danger); display: none;"></p>
+                        <div id="image-preview-container" style="display:none; margin-top: 8px;">
+                            <img id="image-preview" style="max-width:100%; max-height:200px; border-radius:10px; border:1px solid var(--line);" alt="Preview">
+                        </div>
                     </div>
 
                     <div class="field full">
-                        <label for="description">Description</label>
-                        <textarea id="description" name="description" placeholder="Optional details about condition, accessories, pickup...">{{ data.get('description', '') }}</textarea>
+                        <label for="description">Description <span class="word-count" id="word-count-display">0 / {{ description_max_words }} words</span></label>
+                        <textarea id="description" name="description" placeholder="Describe condition, color, size, accessories, pickup details..." oninput="updateWordCount(this, {{ description_max_words }});">{{ data.get('description', '') }}</textarea>
                         <p class="field-hint">Optional. Keep it under {{ description_max_words }} words.</p>
                     </div>
                 </div>
@@ -320,6 +326,32 @@
     </main>
 
     <script>
+        function previewImage(input) {
+            var container = document.getElementById('image-preview-container');
+            var preview = document.getElementById('image-preview');
+            if (input.files && input.files[0]) {
+                var reader = new FileReader();
+                reader.onload = function(e) {
+                    preview.src = e.target.result;
+                    container.style.display = 'block';
+                };
+                reader.readAsDataURL(input.files[0]);
+            } else {
+                container.style.display = 'none';
+                preview.src = '';
+            }
+        }
+
+        function updateWordCount(textarea, maxWords) {
+            var text = textarea.value.trim();
+            var count = text ? text.split(/\s+/).length : 0;
+            var display = document.getElementById('word-count-display');
+            if (display) {
+                display.textContent = count + ' / ' + maxWords + ' words';
+                display.style.color = count > maxWords ? 'var(--danger)' : '';
+            }
+        }
+
         (function() {
             var MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5MB — matches MAX_CONTENT_LENGTH
             var imageInput = document.getElementById('image');

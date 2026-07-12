@@ -1,0 +1,139 @@
+<nav class="nav-bar" role="navigation" aria-label="Main navigation">
+    <div class="nav-inner">
+        <a class="nav-brand" href="{{ url_for('home') }}">
+            <span class="brand">AZISON</span>
+            <span class="site-title">MARKETPLACE</span>
+        </a>
+        <div class="nav-links">
+            <a class="nav-link" href="{{ url_for('home') }}">Listings</a>
+            {% if is_logged_in %}
+                <a class="nav-link" href="{{ url_for('dashboard') }}">Dashboard</a>
+                <a class="nav-link primary" href="{{ url_for('create') }}">+ Add Listing</a>
+                {% if current_user and current_user.get('is_admin') %}
+                    <a class="nav-link admin" href="{{ url_for('admin_panel') }}">Admin</a>
+                {% endif %}
+                <form class="inline-form" method="POST" action="{{ url_for('logout') }}">
+                    <button class="nav-link logout-btn" type="submit">Logout</button>
+                </form>
+                <span class="nav-user">Hi, {{ current_user['full_name'] }}</span>
+            {% else %}
+                <a class="nav-link" href="{{ url_for('register') }}">Register</a>
+                <a class="nav-link" href="{{ url_for('login') }}">Login</a>
+                {% if google_oauth_enabled %}
+                    <a class="nav-link google" href="{{ url_for('login_google', next=url_for('home')) }}">Google</a>
+                {% endif %}
+                <a class="nav-link primary" href="{{ url_for('login', next=url_for('create')) }}">+ Add Listing</a>
+            {% endif %}
+        </div>
+    </div>
+</nav>
+
+<style>
+.nav-bar {
+    border-bottom: 1px solid var(--line);
+    background: rgba(255,255,255,0.7);
+    backdrop-filter: blur(8px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+.nav-inner {
+    width: min(1200px, 92vw);
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 0;
+    flex-wrap: wrap;
+}
+.nav-brand {
+    text-decoration: none;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+.nav-brand .brand {
+    font-family: "Sora", "Manrope", sans-serif;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: var(--text);
+    font-size: 1.15rem;
+}
+.nav-brand .site-title {
+    font-family: "Poppins", "Manrope", sans-serif;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+.nav-links {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.nav-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 7px 11px;
+    text-decoration: none;
+    color: var(--text);
+    background: #fff;
+    font-weight: 700;
+    font-size: 0.84rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.nav-link:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(26,21,10,0.08);
+}
+.nav-link.primary {
+    border-color: transparent;
+    background: linear-gradient(135deg, #ea6f45, var(--brand));
+    color: #fff;
+}
+.nav-link.admin {
+    border-color: #e6dcff;
+    background: #f5f0ff;
+    color: #4b2db8;
+}
+.nav-link.google {
+    border-color: #d8e2ff;
+    background: #f5f8ff;
+    color: #1e3a8a;
+}
+.nav-link.logout-btn {
+    color: var(--danger);
+    border-color: #f2c8c9;
+    background: #fff8f8;
+}
+.nav-user {
+    color: var(--muted);
+    font-size: 0.82rem;
+    font-weight: 500;
+    white-space: nowrap;
+}
+.inline-form {
+    margin: 0;
+    display: inline;
+}
+@media (max-width: 700px) {
+    .nav-inner {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 8px 0;
+    }
+    .nav-links {
+        justify-content: center;
+    }
+    .nav-user {
+        display: none;
+    }
+}
+</style>

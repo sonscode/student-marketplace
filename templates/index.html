@@ -448,6 +448,42 @@
             }
         }
 
+        .filter-row {
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 10px 12px;
+        }
+        .filter-form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: flex-end;
+        }
+        .filter-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+        }
+        .filter-group label {
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .filter-group input,
+        .filter-group select {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 6px 8px;
+            font: inherit;
+            font-size: 0.85rem;
+            background: #fff;
+            color: var(--text);
+        }
+
         @media (max-width: 680px) {
             .search {
                 grid-template-columns: 1fr;
@@ -466,34 +502,8 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/marketplace.css') }}">
 </head>
 <body>
+    {% include "_navigation.html" %}
     <main class="page">
-        <section class="header">
-            <h1><span class="brand">AZISON</span> <span class="site-title">LISTINGS</span></h1>
-            <div class="header-actions">
-                {% if is_logged_in %}
-                    <span class="btn">Hi, {{ current_user['full_name'] }}</span>
-                    <a class="btn" href="{{ url_for('dashboard') }}">My Dashboard</a>
-                    <form class="inline-form" method="POST" action="{{ url_for('logout') }}">
-                        <button class="btn" type="submit">Logout</button>
-                    </form>
-                    <a class="btn primary" href="{{ url_for('create') }}">+ Add New Listing</a>
-                {% else %}
-                    <a class="btn" href="{{ url_for('register') }}">Create Account</a>
-                    <a class="btn" href="{{ url_for('login') }}">Login</a>
-                    {% if google_oauth_enabled %}
-                        <a class="btn google" href="{{ url_for('login_google', next=url_for('home')) }}">Continue with Google</a>
-                    {% endif %}
-                    <a class="btn primary" href="{{ url_for('login', next=url_for('create')) }}">+ Add New Listing</a>
-                {% endif %}
-            </div>
-        </section>
-
-        {% if is_logged_in %}
-            <p class="auth-status">Logged in as <strong>{{ current_user['full_name'] }}</strong> ({{ current_user['email'] or current_user['phone'] }}). You can edit and delete only your own listings.</p>
-        {% else %}
-            <p class="auth-status">You are browsing as a guest. Login to create listings and manage your own posts.</p>
-        {% endif %}
-
         {% include "_flash_messages.html" %}
 
         <section class="controls">
@@ -502,22 +512,72 @@
                 {% if request.args.get('category') %}
                     <input type="hidden" name="category" value="{{ request.args.get('category') }}">
                 {% endif %}
+                {% if request.args.get('min_price') %}
+                    <input type="hidden" name="min_price" value="{{ request.args.get('min_price') }}">
+                {% endif %}
+                {% if request.args.get('max_price') %}
+                    <input type="hidden" name="max_price" value="{{ request.args.get('max_price') }}">
+                {% endif %}
+                {% if request.args.get('show') %}
+                    <input type="hidden" name="show" value="{{ request.args.get('show') }}">
+                {% endif %}
+                {% if request.args.get('sort') %}
+                    <input type="hidden" name="sort" value="{{ request.args.get('sort') }}">
+                {% endif %}
                 <button type="submit">Search</button>
-                {% if request.args.get('search') or request.args.get('category') %}
+                {% if request.args.get('search') or request.args.get('category') or request.args.get('min_price') or request.args.get('max_price') or request.args.get('show') or request.args.get('sort') %}
                     <a class="clear-btn" href="{{ url_for('home') }}">Clear</a>
                 {% endif %}
             </form>
 
             {% set active_category = request.args.get('category') %}
             {% set active_search = request.args.get('search') %}
+            {% set active_show = request.args.get('show') %}
+            {% set active_sort = request.args.get('sort') %}
+            {% set active_min = request.args.get('min_price', '') %}
+            {% set active_max = request.args.get('max_price', '') %}
             <div class="chips">
-                <a class="chip {% if not active_category %}active{% endif %}" href="{{ url_for('home', search=active_search) }}">All</a>
-                <a class="chip {% if active_category == 'Furniture' %}active{% endif %}" href="{{ url_for('home', category='Furniture', search=active_search) }}">Furniture</a>
-                <a class="chip {% if active_category == 'Kitchen' %}active{% endif %}" href="{{ url_for('home', category='Kitchen', search=active_search) }}">Kitchen</a>
-                <a class="chip {% if active_category == 'Electronics' %}active{% endif %}" href="{{ url_for('home', category='Electronics', search=active_search) }}">Electronics</a>
-                <a class="chip {% if active_category == 'Room' %}active{% endif %}" href="{{ url_for('home', category='Room', search=active_search) }}">Room</a>
-                <a class="chip {% if active_category == 'Clothing' %}active{% endif %}" href="{{ url_for('home', category='Clothing', search=active_search) }}">Clothing</a>
-                <a class="chip {% if active_category == 'Other' %}active{% endif %}" href="{{ url_for('home', category='Other', search=active_search) }}">Other</a>
+                <a class="chip {% if not active_category %}active{% endif %}" href="{{ url_for('home', search=active_search, min_price=active_min, max_price=active_max, show=active_show, sort=active_sort) }}">All</a>
+                <a class="chip {% if active_category == 'Furniture' %}active{% endif %}" href="{{ url_for('home', category='Furniture', search=active_search, min_price=active_min, max_price=active_max, show=active_show, sort=active_sort) }}">Furniture</a>
+                <a class="chip {% if active_category == 'Kitchen' %}active{% endif %}" href="{{ url_for('home', category='Kitchen', search=active_search, min_price=active_min, max_price=active_max, show=active_show, sort=active_sort) }}">Kitchen</a>
+                <a class="chip {% if active_category == 'Electronics' %}active{% endif %}" href="{{ url_for('home', category='Electronics', search=active_search, min_price=active_min, max_price=active_max, show=active_show, sort=active_sort) }}">Electronics</a>
+                <a class="chip {% if active_category == 'Room' %}active{% endif %}" href="{{ url_for('home', category='Room', search=active_search, min_price=active_min, max_price=active_max, show=active_show, sort=active_sort) }}">Room</a>
+                <a class="chip {% if active_category == 'Clothing' %}active{% endif %}" href="{{ url_for('home', category='Clothing', search=active_search, min_price=active_min, max_price=active_max, show=active_show, sort=active_sort) }}">Clothing</a>
+                <a class="chip {% if active_category == 'Other' %}active{% endif %}" href="{{ url_for('home', category='Other', search=active_search, min_price=active_min, max_price=active_max, show=active_show, sort=active_sort) }}">Other</a>
+            </div>
+
+            <div class="filter-row">
+                <form class="filter-form" action="/" method="get">
+                    {% if active_search %}<input type="hidden" name="search" value="{{ active_search }}">{% endif %}
+                    {% if active_category %}<input type="hidden" name="category" value="{{ active_category }}">{% endif %}
+                    {% if active_show %}<input type="hidden" name="show" value="{{ active_show }}">{% endif %}
+                    {% if active_sort %}<input type="hidden" name="sort" value="{{ active_sort }}">{% endif %}
+                    <div class="filter-group">
+                        <label for="min_price">Price</label>
+                        <input id="min_price" type="number" name="min_price" placeholder="Min" min="0" value="{{ active_min }}" style="width:90px;">
+                        <span style="color:var(--muted);font-size:0.85rem;">—</span>
+                        <input type="number" name="max_price" placeholder="Max" min="0" value="{{ active_max }}" style="width:90px;">
+                        <span style="color:var(--muted);font-size:0.85rem;white-space:nowrap;">XAF</span>
+                    </div>
+                    <div class="filter-group">
+                        <label for="show">Show</label>
+                        <select id="show" name="show">
+                            <option value="" {% if not active_show %}selected{% endif %}>All listings</option>
+                            <option value="active" {% if active_show == 'active' %}selected{% endif %}>Active only</option>
+                            <option value="featured" {% if active_show == 'featured' %}selected{% endif %}>Featured only</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="sort">Sort</label>
+                        <select id="sort" name="sort">
+                            <option value="newest" {% if not active_sort or active_sort == 'newest' %}selected{% endif %}>Newest first</option>
+                            <option value="price_asc" {% if active_sort == 'price_asc' %}selected{% endif %}>Price: low→high</option>
+                            <option value="price_desc" {% if active_sort == 'price_desc' %}selected{% endif %}>Price: high→low</option>
+                            <option value="ending_soon" {% if active_sort == 'ending_soon' %}selected{% endif %}>Ending soon</option>
+                        </select>
+                    </div>
+                    <button type="submit" style="padding:7px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;font-weight:700;font-family:inherit;cursor:pointer;">Filter</button>
+                </form>
             </div>
         </section>
 

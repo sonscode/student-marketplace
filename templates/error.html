@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ status_code }} | Azison</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Poppins:wght@500;600&family=Sora:wght@700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/marketplace.css') }}">
+    <style>
+        body {
+            margin: 0;
+            font-family: "Manrope", "Segoe UI", sans-serif;
+            color: var(--text);
+        }
+
+        .error-page {
+            width: min(680px, 92vw);
+            margin: 42px auto 56px;
+        }
+
+        .error-card {
+            display: grid;
+            gap: 14px;
+            border: 1px solid var(--line);
+            border-radius: var(--radius-lg);
+            background: var(--surface);
+            padding: 22px;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .error-code {
+            width: fit-content;
+            border-radius: 999px;
+            border: 1px solid var(--line);
+            background: #fff;
+            color: var(--muted);
+            padding: 5px 10px;
+            font-weight: 800;
+            font-size: 0.82rem;
+        }
+
+        .error-card h1 {
+            margin: 0;
+            font-size: clamp(1.45rem, 2.8vw, 2rem);
+        }
+
+        .error-card p {
+            margin: 0;
+            color: var(--muted);
+            line-height: 1.65;
+        }
+
+        .error-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+    <main class="error-page">
+        <section class="error-card">
+            <span class="error-code">{{ status_code }}</span>
+            <h1>{{ title }}</h1>
+            <p>{{ message }}</p>
+
+            <div class="error-actions">
+                {% for action in actions %}
+                    <a class="btn{% if action.primary %} primary{% endif %}" href="{{ action.url }}">{{ action.label }}</a>
+                {% endfor %}
+            </div>
+        </section>
+    </main>
+</body>
+</html>

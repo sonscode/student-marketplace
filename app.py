@@ -416,6 +416,30 @@ REPORT_COMMENT_MAX_LENGTH = 500
 PAYMENT_PENDING_TTL_SECONDS = max(env_int("PAYMENT_PENDING_TTL_SECONDS", 300), 300)
 POLL_INTERVAL_SECONDS = env_int("POLL_INTERVAL_SECONDS", 30)
 
+
+def current_date():
+    return datetime.today().date()
+
+
+def current_date_iso():
+    return current_date().isoformat()
+
+
+def validate_leave_date(raw_leave_date):
+    leave_date = (raw_leave_date or "").strip()
+    if not leave_date:
+        return "", None, "Leaving date is required."
+
+    try:
+        parsed_leave_date = datetime.strptime(leave_date, "%Y-%m-%d").date()
+    except ValueError:
+        return leave_date, None, "Leaving date is invalid."
+
+    if parsed_leave_date < current_date():
+        return leave_date, parsed_leave_date, "Leaving date cannot be in the past."
+
+    return leave_date, parsed_leave_date, ""
+
 def effective_boost_amount() -> int:
     return BOOST_LISTING_AMOUNT
 
@@ -731,10 +755,68 @@ def admin_required(view_func):
                 next_url += "?" + request.query_string.decode("utf-8")
             return redirect(url_for("login", next=next_url))
         if not user.get("is_admin"):
-            return "Admin access required", 403
+            return render_error_page(
+                403,
+                "Admin access required",
+                "You are signed in, but this area is only available to administrators.",
+            )
         return view_func(*args, **kwargs)
 
     return wrapped
+
+
+def default_error_actions():
+    actions = [
+        {
+            "label": "Go to Listings",
+            "url": url_for("home"),
+            "primary": True,
+        }
+    ]
+
+    if current_user_record():
+        actions.append(
+            {
+                "label": "My Dashboard",
+                "url": url_for("dashboard"),
+                "primary": False,
+            }
+        )
+    else:
+        actions.append(
+            {
+                "label": "Login",
+                "url": url_for("login", next=request.path),
+                "primary": False,
+            }
+        )
+
+    return actions
+
+
+def render_error_page(status_code, title, message, actions=None):
+    return (
+        render_template(
+            "error.html",
+            status_code=status_code,
+            title=title,
+            message=message,
+            actions=actions or default_error_actions(),
+        ),
+        status_code,
+    )
+
+
+@app.errorhandler(403)
+def forbidden(error):
+    description = getattr(error, "description", "") or "You do not have permission to access this page."
+    return render_error_page(403, "Access restricted", description)
+
+
+@app.errorhandler(404)
+def not_found(error):
+    description = getattr(error, "description", "") or "The page or listing you requested could not be found."
+    return render_error_page(404, "Page not found", description)
 
 
 def development_route_access_reason():
@@ -767,7 +849,11 @@ def development_only(view_func):
                 app.debug,
                 os.getenv("FLASK_DEBUG", ""),
             )
-            return "Not found", 404
+            return render_error_page(
+                404,
+                "Page not found",
+                "This development-only payment route is not available in the current environment.",
+            )
         app.logger.debug(
             "dev_payment_route granted path=%s reason=%s remote_addr=%s",
             request.path,
@@ -858,7 +944,7 @@ def get_payment_by_id(cursor, payment_id: int):
     cursor.execute(
         """
         SELECT p.id, p.listing_id, p.reference AS reference_id, p.provider_reference, p.amount, p.status, p.phone, p.created_at,
-               l.owner_phone, l.is_featured
+               l.owner_phone, l.phone AS listing_phone, l.title AS listing_title, l.is_featured
         FROM payments p
         JOIN listings l ON l.id = p.listing_id
         WHERE p.id = ?
@@ -896,7 +982,7 @@ def get_payment_for_owner(cursor, payment_reference, owner_phone):
     cursor.execute(
         """
         SELECT p.id, p.listing_id, p.reference AS reference_id, p.provider_reference, p.amount, p.status, p.phone, p.created_at,
-               l.owner_phone, l.is_featured
+               l.owner_phone, l.phone AS listing_phone, l.title AS listing_title, l.is_featured
         FROM payments p
         JOIN listings l ON l.id = p.listing_id
         WHERE p.reference = ? AND l.owner_phone = ?
@@ -911,7 +997,7 @@ def get_payment_by_reference(cursor, payment_reference):
     cursor.execute(
         """
         SELECT p.id, p.listing_id, p.reference AS reference_id, p.provider_reference, p.amount, p.status, p.phone, p.created_at,
-               l.owner_phone, l.is_featured
+               l.owner_phone, l.phone AS listing_phone, l.title AS listing_title, l.is_featured
         FROM payments p
         JOIN listings l ON l.id = p.listing_id
         WHERE p.reference = ? OR p.provider_reference = ?
@@ -1446,47 +1532,70 @@ def home():
 
     category = request.args.get("category")
     search = request.args.get("search")
+    min_price = request.args.get("min_price", "").strip()
+    max_price = request.args.get("max_price", "").strip()
+    show_filter = request.args.get("show", "").strip()
+    sort = request.args.get("sort", "").strip()
     user_phone = get_session_phone()
 
-    if category and search:
+    # Build base query conditions
+    conditions = []
+    params = []
+
+    if category:
+        conditions.append("category = ?")
+        params.append(category)
+
+    if search:
         query = f"%{search}%"
-        cursor.execute(
-            """
-            SELECT * FROM listings
-            WHERE category = ?
-            AND (
-                title LIKE ?
-                OR category LIKE ?
-                OR price LIKE ?
-                OR phone LIKE ?
-                OR description LIKE ?
-            )
-            ORDER BY is_featured DESC, id DESC
-            """,
-            (category, query, query, query, query, query),
-        )
+        conditions.append("(title LIKE ? OR category LIKE ? OR price LIKE ? OR phone LIKE ? OR description LIKE ?)")
+        params.extend([query, query, query, query, query])
 
-    elif category:
-        cursor.execute(
-            """
-            SELECT * FROM listings
-            WHERE category = ?
-            ORDER BY is_featured DESC, id DESC
-            """,
-            (category,),
-        )
+    if min_price:
+        try:
+            conditions.append("CAST(price AS INTEGER) >= ?")
+            params.append(int(min_price))
+        except ValueError:
+            pass
 
-    elif search:
-        cursor.execute(
-            """
-            SELECT * FROM listings
-            ORDER BY is_featured DESC, id DESC
-            """
-        )
+    if max_price:
+        try:
+            conditions.append("CAST(price AS INTEGER) <= ?")
+            params.append(int(max_price))
+        except ValueError:
+            pass
 
-        all_listings = cursor.fetchall()
+    if show_filter == "active":
+        conditions.append("is_featured = 0")
+    elif show_filter == "featured":
+        conditions.append("is_featured = 1")
+    # Default: exclude expired listings (leave_date in the past)
+    if show_filter != "all":
+        today_str = current_date().isoformat()
+        conditions.append("leave_date >= ?")
+        params.append(today_str)
+
+    where_clause = " AND ".join(conditions) if conditions else "1"
+
+    # Determine sort order
+    if sort == "price_asc":
+        order_clause = "CAST(price AS INTEGER) ASC, id DESC"
+    elif sort == "price_desc":
+        order_clause = "CAST(price AS INTEGER) DESC, id DESC"
+    elif sort == "ending_soon":
+        order_clause = "leave_date ASC, is_featured DESC"
+    else:
+        order_clause = "is_featured DESC, id DESC"
+
+    cursor.execute(
+        f"SELECT * FROM listings WHERE {where_clause} ORDER BY {order_clause}",
+        params,
+    )
+    all_listings = cursor.fetchall()
+
+    # For search, apply fuzzy matching on top of SQL LIKE
+    if search:
         filtered = []
-
         for item in all_listings:
             searchable_fields = [
                 item["title"],
@@ -1496,49 +1605,31 @@ def home():
                 item["description"],
             ]
             matched = False
-
             for field in searchable_fields:
                 if field is None:
                     continue
-
                 words = field.lower().split()
-
                 for word in words:
                     clean_search = re.sub(r"[^a-zA-Z0-9]", "", search.lower())
                     clean_word = re.sub(r"[^a-zA-Z0-9]", "", word.lower())
-
                     similarity = difflib.SequenceMatcher(None, clean_search, clean_word).ratio()
-
                     if clean_search in clean_word or similarity > 0.50:
                         matched = True
                         break
-
                 if matched:
                     break
-
             if matched:
                 filtered.append(item)
+        all_listings = filtered
 
-        listings = filtered
-
-    else:
-        cursor.execute(
-            """
-            SELECT * FROM listings
-            ORDER BY is_featured DESC, id DESC
-            """
-        )
-
-    if "listings" not in locals():
-        listings = cursor.fetchall()
-
-    today = datetime.today().date()
+    today = current_date()
     featured_listings = []
     active_listings = []
     expired_listings = []
-    for item in listings:
+    for item in all_listings:
         leave_date = datetime.strptime(item["leave_date"], "%Y-%m-%d").date()
         days_left = (leave_date - today).days
+        is_expired = days_left < 0
 
         owner_phone = item["owner_phone"] or ""
         listing_data = {
@@ -1553,11 +1644,11 @@ def home():
             "image": item["image"],
             "is_featured": item["is_featured"],
             "days_left": days_left,
-            "is_expired": days_left < 0,
+            "is_expired": is_expired,
             "can_manage": bool(user_phone and user_phone == owner_phone),
         }
 
-        if listing_data["is_expired"]:
+        if is_expired:
             expired_listings.append(listing_data)
         elif item["is_featured"] == 1:
             featured_listings.append(listing_data)
@@ -1784,6 +1875,7 @@ def create():
         form_data={},
         form_errors=[],
         description_max_words=DESCRIPTION_MAX_WORDS,
+        min_leave_date=current_date_iso(),
     )
 
 
@@ -1810,7 +1902,8 @@ def dashboard():
 
     cursor.execute(
         """
-        SELECT p.id, p.listing_id, p.reference AS reference_id, p.amount, p.status, p.phone, p.created_at
+        SELECT p.id, p.listing_id, p.reference AS reference_id, p.amount, p.status, p.phone, p.created_at,
+               l.title AS listing_title
         FROM payments p
         JOIN listings l ON l.id = p.listing_id
         WHERE l.owner_phone = ?
@@ -1822,7 +1915,7 @@ def dashboard():
 
     conn.close()
 
-    today = datetime.today().date()
+    today = current_date()
     listings = []
     pending_payments_by_listing = {}
     payment_history = []
@@ -1842,6 +1935,7 @@ def dashboard():
         payment_history.append(
             {
                 "listing_id": payment_row["listing_id"],
+                "listing_title": payment_row["listing_title"] or f"Listing #{payment_row['listing_id']}",
                 "reference_id": payment_row["reference_id"],
                 "amount": payment_row["amount"],
                 "status": normalized_status,
@@ -1912,13 +2006,18 @@ def add_listing():
                 form_data=form_data,
                 form_errors=errors,
                 description_max_words=DESCRIPTION_MAX_WORDS,
+                min_leave_date=current_date_iso(),
             ),
             400,
         )
 
     if not owner_phone:
         conn.close()
-        return "Not allowed", 403
+        return render_error_page(
+            403,
+            "Action not allowed",
+            "You need an active account before you can create a listing.",
+        )
 
     image = request.files.get("image")
     if image is None or not image.filename:
@@ -1940,11 +2039,9 @@ def add_listing():
     if validated["errors"]:
         return render_create_errors(validated["errors"])
 
-    leave_date = (request.form.get("leave_date") or "").strip()
-    try:
-        datetime.strptime(leave_date, "%Y-%m-%d")
-    except ValueError:
-        return render_create_errors(["Leaving date is invalid."])
+    leave_date, _, leave_date_error = validate_leave_date(request.form.get("leave_date"))
+    if leave_date_error:
+        return render_create_errors([leave_date_error])
 
     category = (request.form.get("category") or "").strip()
     if not category:
@@ -1981,14 +2078,22 @@ def delete_listing(id):
 
     if not owner_phone:
         conn.close()
-        return "Not allowed", 403
+        return render_error_page(
+            403,
+            "Action not allowed",
+            "You are not allowed to delete this listing.",
+        )
 
     cursor.execute("SELECT id FROM listings WHERE id = ? AND owner_phone = ?", (id, owner_phone))
     listing = cursor.fetchone()
 
     if listing is None:
         conn.close()
-        return "Listing not found or not allowed", 404
+        return render_error_page(
+            404,
+            "Listing not found",
+            "We could not find that listing under your account.",
+        )
 
     cursor.execute("DELETE FROM listings WHERE id = ? AND owner_phone = ?", (id, owner_phone))
     conn.commit()
@@ -2005,14 +2110,22 @@ def edit_listing(id):
 
     if not owner_phone:
         conn.close()
-        return "Not allowed", 403
+        return render_error_page(
+            403,
+            "Action not allowed",
+            "You are not allowed to edit this listing.",
+        )
 
     cursor.execute("SELECT * FROM listings WHERE id = ? AND owner_phone = ?", (id, owner_phone))
     listing = cursor.fetchone()
 
     if listing is None:
         conn.close()
-        return "Listing not found or not allowed", 404
+        return render_error_page(
+            404,
+            "Listing not found",
+            "We could not find that listing under your account.",
+        )
 
     conn.close()
     return render_template(
@@ -2020,6 +2133,8 @@ def edit_listing(id):
         listing=listing,
         form_errors=[],
         description_max_words=DESCRIPTION_MAX_WORDS,
+        min_leave_date=current_date_iso(),
+        renew_mode=request.args.get("renew") == "1",
     )
 
 
@@ -2032,7 +2147,11 @@ def update_listing(id):
 
     if not owner_phone:
         conn.close()
-        return "Not allowed", 403
+        return render_error_page(
+            403,
+            "Action not allowed",
+            "You are not allowed to update this listing.",
+        )
 
     cursor.execute(
         "SELECT image, category, leave_date, title, price, phone, description, is_featured FROM listings WHERE id = ? AND owner_phone = ?",
@@ -2042,7 +2161,11 @@ def update_listing(id):
 
     if current_listing is None:
         conn.close()
-        return "Listing not found or not allowed", 404
+        return render_error_page(
+            404,
+            "Listing not found",
+            "We could not find that listing under your account.",
+        )
 
     listing_form = {
         "id": id,
@@ -2064,6 +2187,8 @@ def update_listing(id):
                 listing=listing_form,
                 form_errors=errors,
                 description_max_words=DESCRIPTION_MAX_WORDS,
+                min_leave_date=current_date_iso(),
+                renew_mode=request.args.get("renew") == "1",
             ),
             400,
         )
@@ -2084,10 +2209,9 @@ def update_listing(id):
     category = request.form.get("category", "").strip() or current_listing["category"]
     leave_date = request.form.get("leave_date", "").strip() or current_listing["leave_date"]
     description = validated["description"]
-    try:
-        datetime.strptime(leave_date, "%Y-%m-%d")
-    except ValueError:
-        return render_edit_errors(["Leaving date is invalid."])
+    leave_date, _, leave_date_error = validate_leave_date(leave_date)
+    if leave_date_error:
+        return render_edit_errors([leave_date_error])
 
     image = request.files.get("image")
     image_url = current_image
@@ -2126,7 +2250,11 @@ def listing_detail(id):
 
     if item is None:
         conn.close()
-        return "Listing not found", 404
+        return render_error_page(
+            404,
+            "Listing not found",
+            "This listing may have been deleted or is no longer available.",
+        )
 
     # Track views with session-based deduplication
     # Ensure viewed_listings is a set for efficient lookup and storage
@@ -2169,7 +2297,7 @@ def listing_detail(id):
     related_rows = cursor.fetchall()
     conn.close()
 
-    today = datetime.today().date()
+    today = current_date()
     leave_date = datetime.strptime(item["leave_date"], "%Y-%m-%d").date()
     days_left = (leave_date - today).days
 
@@ -2199,6 +2327,7 @@ def listing_detail(id):
         "listing_detail.html",
         item=item,
         days_left=days_left,
+        is_expired=days_left < 0,
         related_items=related_items,
         can_manage=can_manage,
         pending_payment_reference=pending_payment_reference,
@@ -2991,7 +3120,7 @@ def admin_panel():
 
     conn.close()
 
-    today = datetime.today().date()
+    today = current_date()
     listings = []
     for row in rows:
         leave_date = datetime.strptime(row["leave_date"], "%Y-%m-%d").date()
@@ -3103,7 +3232,11 @@ def admin_delete_listing(id):
         if raw_next:
             flash("Listing not found.", "error")
             return redirect(next_url)
-        return "Listing not found", 404
+        return render_error_page(
+            404,
+            "Listing not found",
+            "This listing may have already been deleted.",
+        )
 
     cursor.execute("DELETE FROM listings WHERE id = ?", (id,))
     conn.commit()
