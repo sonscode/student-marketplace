@@ -194,6 +194,7 @@
             border-radius: 16px;
             padding: 15px;
             animation: lift-in 0.24s ease both;
+            overflow: hidden;
         }
 
         .card.clickable {
@@ -272,9 +273,9 @@
         }
 
         .thumb {
-            width: 92px;
-            height: 92px;
-            border-radius: 12px;
+            width: 80px;
+            height: 80px;
+            border-radius: 10px;
             object-fit: cover;
             background: #f3f0e9;
             border: 1px solid var(--line);
@@ -282,8 +283,9 @@
 
         .thumb-link {
             display: block;
-            width: 92px;
-            border-radius: 12px;
+            width: 80px;
+            max-width: 100%;
+            border-radius: 10px;
         }
 
         .actions {
