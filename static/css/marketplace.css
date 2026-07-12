@@ -528,20 +528,6 @@ mark {
     .row-actions {
         gap: 8px;
     }
-
-    .card,
-    .card.clickable {
-        grid-template-columns: 1fr;
-    }
-
-    .thumb,
-    .thumb-link {
-        width: 100%;
-    }
-
-    .thumb {
-        height: 190px;
-    }
 }
 
 @media (prefers-reduced-motion: reduce) {
