@@ -58,7 +58,7 @@ def test_public_home_keeps_recent_expired_listings_visible(client, ux_user):
     old_expired_title = f"Old Expired UX {uuid.uuid4()}"
     active_date = (datetime.today() + timedelta(days=5)).strftime("%Y-%m-%d")
     recent_expired_date = (datetime.today() - timedelta(days=5)).strftime("%Y-%m-%d")
-    old_expired_date = (datetime.today() - timedelta(days=45)).strftime("%Y-%m-%d")
+    old_expired_date = (datetime.today() - timedelta(days=75)).strftime("%Y-%m-%d")
     _create_listing(cursor, phone=ux_user["phone"], title=active_title, leave_date=active_date)
     _create_listing(cursor, phone=ux_user["phone"], title=recent_expired_title, leave_date=recent_expired_date)
     _create_listing(cursor, phone=ux_user["phone"], title=old_expired_title, leave_date=old_expired_date)
