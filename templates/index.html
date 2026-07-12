@@ -669,9 +669,8 @@
             }
 
             .card {
-                grid-template-columns: 1fr;
-                padding: 12px;
-                gap: 10px;
+                padding: 10px;
+                gap: 8px;
             }
 
             .card-body h2 {
@@ -705,23 +704,28 @@
             }
 
             .actions {
-                margin-top: 8px;
-                gap: 6px;
+                margin-top: 6px;
+                gap: 4px;
             }
 
             .action-link,
             .action-btn {
-                padding: 6px 9px;
-                font-size: 0.8rem;
+                padding: 4px 7px;
+                font-size: 0.74rem;
+                border-radius: 8px;
             }
 
             .thumb {
                 width: 100%;
-                height: 140px;
+                max-width: 100px;
+                height: 70px;
+                align-self: flex-start;
+                justify-self: end;
             }
 
             .thumb-link {
-                width: 100%;
+                width: auto;
+                max-width: 100px;
             }
 
             .empty {
@@ -879,10 +883,6 @@
                                 <p class="summary">{{ (item['description'][:120] ~ '...') | highlight(search) }}</p>
                             {% else %}
                                 <p class="summary">{{ item['description'] | highlight(search) }}</p>
-                            {% endif %}
-
-                            {% if item['last_updated_label'] %}
-                                <p class="trust-meta">Last updated {{ item['last_updated_label'] }}</p>
                             {% endif %}
 
                             <div class="badges">
