@@ -7,6 +7,7 @@ import hashlib
 import ipaddress
 from datetime import datetime, timedelta
 from functools import wraps
+from urllib.parse import quote
 # Image upload failed. Please try again.
 import sqlite3
 try:
@@ -402,6 +403,7 @@ def env_int(name, default):
 PRICE_MIN = 500
 PRICE_MAX = 50000000
 DESCRIPTION_MAX_WORDS = 50
+EXPIRED_LISTING_RETENTION_DAYS = 30
 BOOST_LISTING_AMOUNT = env_int("BOOST_LISTING_AMOUNT", 100)
 REPORT_REASONS = (
     "Spam",
@@ -423,6 +425,10 @@ def current_date():
 
 def current_date_iso():
     return current_date().isoformat()
+
+
+def expired_listing_cutoff_date():
+    return current_date() - timedelta(days=EXPIRED_LISTING_RETENTION_DAYS)
 
 
 def validate_leave_date(raw_leave_date):
@@ -528,6 +534,54 @@ def build_payment_status_view(payment_row):
         "show_recovery_action": False,
         "show_waiting_message": False,
         "is_terminal": False,
+    }
+
+
+def format_payment_date(raw_datetime):
+    raw_datetime = (raw_datetime or "").strip()
+    if not raw_datetime:
+        return "Date unavailable"
+
+    try:
+        parsed = datetime.fromisoformat(raw_datetime.replace("Z", "+00:00"))
+    except ValueError:
+        return raw_datetime[:10] if len(raw_datetime) >= 10 else raw_datetime
+
+    return parsed.strftime("%b %d, %Y at %H:%M").replace(" 0", " ")
+
+
+def format_xaf_amount(amount):
+    try:
+        return f"{int(amount):,} XAF"
+    except (TypeError, ValueError):
+        return f"{amount or 0} XAF"
+
+
+def build_dashboard_payment_view(payment_row):
+    normalized_status = resolve_internal_payment_status(payment_row["status"]) or PAYMENT_STATUS_PENDING
+    status_display = {
+        PAYMENT_STATUS_SUCCESSFUL: ("Completed", "chip featured"),
+        PAYMENT_STATUS_PENDING: ("Pending", "chip"),
+        PAYMENT_STATUS_FAILED: ("Failed", "chip expired"),
+        PAYMENT_STATUS_CANCELLED: ("Cancelled", "chip expired"),
+        PAYMENT_STATUS_REJECTED: ("Rejected", "chip expired"),
+        PAYMENT_STATUS_EXPIRED: ("Expired", "chip expired"),
+    }
+    status_label, badge_class = status_display.get(normalized_status, (normalized_status.title(), "chip"))
+
+    return {
+        "listing_id": payment_row["listing_id"],
+        "listing_title": payment_row["listing_title"] or f"Listing #{payment_row['listing_id']}",
+        "reference_id": payment_row["reference_id"],
+        "amount": payment_row["amount"],
+        "amount_label": format_xaf_amount(payment_row["amount"]),
+        "status": normalized_status,
+        "status_label": status_label,
+        "badge_class": badge_class,
+        "phone": payment_row["phone"] or "",
+        "created_at": payment_row["created_at"],
+        "created_label": format_payment_date(payment_row["created_at"]),
+        "can_check": normalized_status == PAYMENT_STATUS_PENDING,
     }
 
 
@@ -1565,15 +1619,23 @@ def home():
         except ValueError:
             pass
 
+    today_str = current_date_iso()
+    expired_cutoff_str = expired_listing_cutoff_date().isoformat()
+
     if show_filter == "active":
-        conditions.append("is_featured = 0")
-    elif show_filter == "featured":
-        conditions.append("is_featured = 1")
-    # Default: exclude expired listings (leave_date in the past)
-    if show_filter != "all":
-        today_str = current_date().isoformat()
         conditions.append("leave_date >= ?")
         params.append(today_str)
+    elif show_filter == "featured":
+        conditions.append("is_featured = 1")
+        conditions.append("leave_date >= ?")
+        params.append(expired_cutoff_str)
+    elif show_filter == "expired":
+        conditions.append("leave_date < ?")
+        conditions.append("leave_date >= ?")
+        params.extend([today_str, expired_cutoff_str])
+    elif show_filter != "all":
+        conditions.append("leave_date >= ?")
+        params.append(expired_cutoff_str)
 
     where_clause = " AND ".join(conditions) if conditions else "1"
 
@@ -1583,7 +1645,7 @@ def home():
     elif sort == "price_desc":
         order_clause = "CAST(price AS INTEGER) DESC, id DESC"
     elif sort == "ending_soon":
-        order_clause = "leave_date ASC, is_featured DESC"
+        order_clause = f"CASE WHEN leave_date >= '{today_str}' THEN 0 ELSE 1 END ASC, leave_date ASC, is_featured DESC"
     else:
         order_clause = "is_featured DESC, id DESC"
 
@@ -1932,17 +1994,7 @@ def dashboard():
         if normalized_status == PAYMENT_STATUS_PENDING and payment_row["listing_id"] not in pending_payments_by_listing:
             pending_payments_by_listing[payment_row["listing_id"]] = payment_row["reference_id"]
 
-        payment_history.append(
-            {
-                "listing_id": payment_row["listing_id"],
-                "listing_title": payment_row["listing_title"] or f"Listing #{payment_row['listing_id']}",
-                "reference_id": payment_row["reference_id"],
-                "amount": payment_row["amount"],
-                "status": normalized_status,
-                "phone": payment_row["phone"] or "",
-                "created_at": payment_row["created_at"],
-            }
-        )
+        payment_history.append(build_dashboard_payment_view(payment_row))
 
     for row in rows:
         leave_date = datetime.strptime(row["leave_date"], "%Y-%m-%d").date()
@@ -2062,11 +2114,13 @@ def add_listing():
         "INSERT INTO listings (title, price, category, phone, owner_phone, leave_date, description, image, is_featured) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (title, price, category, phone, owner_phone, leave_date, description, image_url, is_featured),
     )
+    listing_id = cursor.lastrowid
 
     conn.commit()
     conn.close()
 
-    return redirect(url_for("home"))
+    flash("Listing posted successfully.", "success")
+    return redirect(url_for("listing_detail", id=listing_id))
 
 
 @app.route("/delete/<int:id>", methods=["POST"])
@@ -2236,7 +2290,8 @@ def update_listing(id):
     conn.commit()
     conn.close()
 
-    return redirect(url_for("home"))
+    flash("Listing updated successfully.", "success")
+    return redirect(url_for("listing_detail", id=id))
 
 
 @app.route("/listing/<int:id>")
@@ -2300,6 +2355,15 @@ def listing_detail(id):
     today = current_date()
     leave_date = datetime.strptime(item["leave_date"], "%Y-%m-%d").date()
     days_left = (leave_date - today).days
+    is_expired = days_left < 0
+    whatsapp_phone = normalize_phone(item["phone"])
+    whatsapp_url = ""
+    if not is_expired and whatsapp_phone:
+        whatsapp_message = (
+            f'Hi, I am interested in "{item["title"]}" listed on Azison '
+            f'for {item["price"]} XAF. Is it still available?'
+        )
+        whatsapp_url = f"https://wa.me/{whatsapp_phone}?text={quote(whatsapp_message)}"
 
     related_items = []
     for related in related_rows:
@@ -2327,7 +2391,7 @@ def listing_detail(id):
         "listing_detail.html",
         item=item,
         days_left=days_left,
-        is_expired=days_left < 0,
+        is_expired=is_expired,
         related_items=related_items,
         can_manage=can_manage,
         pending_payment_reference=pending_payment_reference,
@@ -2335,6 +2399,7 @@ def listing_detail(id):
         boost_amount=effective_boost_amount(),
         report_reasons=REPORT_REASONS,
         report_comment_max_length=REPORT_COMMENT_MAX_LENGTH,
+        whatsapp_url=whatsapp_url,
     )
 
 

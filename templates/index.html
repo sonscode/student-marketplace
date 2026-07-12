@@ -550,8 +550,6 @@
                 <form class="filter-form" action="/" method="get">
                     {% if active_search %}<input type="hidden" name="search" value="{{ active_search }}">{% endif %}
                     {% if active_category %}<input type="hidden" name="category" value="{{ active_category }}">{% endif %}
-                    {% if active_show %}<input type="hidden" name="show" value="{{ active_show }}">{% endif %}
-                    {% if active_sort %}<input type="hidden" name="sort" value="{{ active_sort }}">{% endif %}
                     <div class="filter-group">
                         <label for="min_price">Price</label>
                         <input id="min_price" type="number" name="min_price" placeholder="Min" min="0" value="{{ active_min }}" style="width:90px;">
@@ -565,6 +563,7 @@
                             <option value="" {% if not active_show %}selected{% endif %}>All listings</option>
                             <option value="active" {% if active_show == 'active' %}selected{% endif %}>Active only</option>
                             <option value="featured" {% if active_show == 'featured' %}selected{% endif %}>Featured only</option>
+                            <option value="expired" {% if active_show == 'expired' %}selected{% endif %}>Expired only</option>
                         </select>
                     </div>
                     <div class="filter-group">

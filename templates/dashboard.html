@@ -489,37 +489,14 @@
             {% if payment_history %}
                 <div style="display:grid;gap:8px;">
                     {% for payment in payment_history %}
-                        {% set status_lower = payment['status']|lower %}
-                        {% set status_label = payment['status'] %}
-                        {% if status_lower in ('successful', 'success') %}
-                            {% set badge_class = 'chip featured' %}
-                            {% set status_label = '✅ Completed' %}
-                        {% elif status_lower in ('pending', 'initiated', 'processing') %}
-                            {% set badge_class = 'chip' %}
-                            {% set status_label = '⏳ Pending' %}
-                        {% elif status_lower in ('failed', 'fail', 'error') %}
-                            {% set badge_class = 'chip expired' %}
-                            {% set status_label = '❌ Failed' %}
-                        {% elif status_lower in ('cancelled', 'cancel') %}
-                            {% set badge_class = 'chip expired' %}
-                            {% set status_label = '↩ Cancelled' %}
-                        {% elif status_lower in ('rejected', 'denied') %}
-                            {% set badge_class = 'chip expired' %}
-                            {% set status_label = '🚫 Rejected' %}
-                        {% elif status_lower == 'expired' %}
-                            {% set badge_class = 'chip expired' %}
-                            {% set status_label = '⏰ Expired' %}
-                        {% else %}
-                            {% set badge_class = 'chip' %}
-                        {% endif %}
                         <div style="border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:#fcfbf8;">
                             <span style="font-weight:700;flex:1;min-width:120px;">
                                 <a href="{{ url_for('listing_detail', id=payment['listing_id']) }}" style="color:var(--text);text-decoration:none;">{{ payment['listing_title'] }}</a>
                             </span>
-                            <span><strong>{{ payment['amount'] }} XAF</strong></span>
-                            <span class="{{ badge_class }}">{{ status_label }}</span>
-                            <span style="color:var(--muted);font-size:0.82rem;">{{ payment['created_at'][:10] }}</span>
-                            {% if payment['status'] in ('PENDING', 'INITIATED', 'PROCESSING') %}
+                            <span><strong>{{ payment['amount_label'] }}</strong></span>
+                            <span class="{{ payment['badge_class'] }}">{{ payment['status_label'] }}</span>
+                            <span style="color:var(--muted);font-size:0.82rem;">{{ payment['created_label'] }}</span>
+                            {% if payment['can_check'] %}
                                 <a class="link-btn" href="{{ url_for('verify_listing_payment', reference_id=payment['reference_id'], next=url_for('dashboard')) }}">Check</a>
                             {% endif %}
                         </div>

@@ -166,6 +166,34 @@ input[type="file"]::file-selector-button:hover {
     transform: translateY(-1px);
 }
 
+.cta.whatsapp {
+    background: #25d366;
+    border-color: transparent;
+    color: #ffffff;
+}
+
+.cta.whatsapp:hover {
+    background: #1ebe5d;
+    box-shadow: 0 12px 26px rgba(37, 211, 102, 0.22);
+}
+
+.cta.disabled,
+.cta.disabled:hover {
+    background: #e2e8f0;
+    border-color: transparent;
+    color: #475569;
+    box-shadow: none;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.whatsapp-icon {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+    fill: currentColor;
+}
+
 .btn.google {
     background: #ffffff;
     border-color: #c7d2fe;

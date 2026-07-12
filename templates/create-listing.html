@@ -356,6 +356,7 @@
             var MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5MB — matches MAX_CONTENT_LENGTH
             var imageInput = document.getElementById('image');
             var hintEl = document.getElementById('image-size-hint');
+            var description = document.getElementById('description');
             var form = document.getElementById('create-listing-form');
             var submitBtn = document.getElementById('submit-btn');
 
@@ -377,6 +378,8 @@
             imageInput.addEventListener('change', function() {
                 validateFileSize();
             });
+
+            updateWordCount(description, {{ description_max_words }});
 
             form.addEventListener('submit', function(e) {
                 if (!validateFileSize()) {

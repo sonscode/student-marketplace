@@ -39,26 +39,29 @@ def ux_user():
     conn.close()
 
 
-def _create_listing(cursor, *, phone, title, leave_date):
+def _create_listing(cursor, *, phone, title, leave_date, is_featured=0):
     cursor.execute(
         """
         INSERT INTO listings (title, price, category, phone, owner_phone, leave_date, description, image, is_featured)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (title, "1500", "Other", phone, phone, leave_date, "Regression listing", "", 0),
+        (title, "1500", "Other", phone, phone, leave_date, "Regression listing", "", is_featured),
     )
     return cursor.lastrowid
 
 
-def test_public_home_hides_expired_listings_by_default(client, ux_user):
+def test_public_home_keeps_recent_expired_listings_visible(client, ux_user):
     conn = get_db()
     cursor = conn.cursor()
     active_title = f"Active UX {uuid.uuid4()}"
-    expired_title = f"Expired UX {uuid.uuid4()}"
+    recent_expired_title = f"Recent Expired UX {uuid.uuid4()}"
+    old_expired_title = f"Old Expired UX {uuid.uuid4()}"
     active_date = (datetime.today() + timedelta(days=5)).strftime("%Y-%m-%d")
-    expired_date = (datetime.today() - timedelta(days=5)).strftime("%Y-%m-%d")
+    recent_expired_date = (datetime.today() - timedelta(days=5)).strftime("%Y-%m-%d")
+    old_expired_date = (datetime.today() - timedelta(days=45)).strftime("%Y-%m-%d")
     _create_listing(cursor, phone=ux_user["phone"], title=active_title, leave_date=active_date)
-    _create_listing(cursor, phone=ux_user["phone"], title=expired_title, leave_date=expired_date)
+    _create_listing(cursor, phone=ux_user["phone"], title=recent_expired_title, leave_date=recent_expired_date)
+    _create_listing(cursor, phone=ux_user["phone"], title=old_expired_title, leave_date=old_expired_date)
     conn.commit()
     conn.close()
 
@@ -67,8 +70,55 @@ def test_public_home_hides_expired_listings_by_default(client, ux_user):
 
     assert response.status_code == 200
     assert active_title in html
+    assert recent_expired_title in html
+    assert old_expired_title not in html
+    assert "Expired Listings" in html
+
+
+def test_featured_filter_only_returns_featured_visible_listings(client, ux_user):
+    conn = get_db()
+    cursor = conn.cursor()
+    featured_title = f"Featured UX {uuid.uuid4()}"
+    active_title = f"Active Nonfeatured UX {uuid.uuid4()}"
+    expired_title = f"Expired Nonfeatured UX {uuid.uuid4()}"
+    active_date = (datetime.today() + timedelta(days=5)).strftime("%Y-%m-%d")
+    expired_date = (datetime.today() - timedelta(days=5)).strftime("%Y-%m-%d")
+    _create_listing(cursor, phone=ux_user["phone"], title=featured_title, leave_date=active_date, is_featured=1)
+    _create_listing(cursor, phone=ux_user["phone"], title=active_title, leave_date=active_date, is_featured=0)
+    _create_listing(cursor, phone=ux_user["phone"], title=expired_title, leave_date=expired_date, is_featured=0)
+    conn.commit()
+    conn.close()
+
+    response = client.get("/?show=featured")
+    html = response.data.decode()
+
+    assert response.status_code == 200
+    assert featured_title in html
+    assert active_title not in html
     assert expired_title not in html
-    assert "Expired Listings" not in html
+
+
+def test_active_filter_returns_active_listings_even_when_featured(client, ux_user):
+    conn = get_db()
+    cursor = conn.cursor()
+    featured_title = f"Active Featured UX {uuid.uuid4()}"
+    active_title = f"Active Plain UX {uuid.uuid4()}"
+    expired_title = f"Expired UX {uuid.uuid4()}"
+    active_date = (datetime.today() + timedelta(days=5)).strftime("%Y-%m-%d")
+    expired_date = (datetime.today() - timedelta(days=5)).strftime("%Y-%m-%d")
+    _create_listing(cursor, phone=ux_user["phone"], title=featured_title, leave_date=active_date, is_featured=1)
+    _create_listing(cursor, phone=ux_user["phone"], title=active_title, leave_date=active_date, is_featured=0)
+    _create_listing(cursor, phone=ux_user["phone"], title=expired_title, leave_date=expired_date, is_featured=1)
+    conn.commit()
+    conn.close()
+
+    response = client.get("/?show=active")
+    html = response.data.decode()
+
+    assert response.status_code == 200
+    assert featured_title in html
+    assert active_title in html
+    assert expired_title not in html
 
 
 def test_expired_listing_detail_disables_contact(client, ux_user):
@@ -91,6 +141,28 @@ def test_expired_listing_detail_disables_contact(client, ux_user):
     assert "This listing has expired." in html
     assert "Contact unavailable - listing expired" in html
     assert "https://wa.me/" not in html
+
+
+def test_active_listing_detail_uses_whatsapp_contact_button(client, ux_user):
+    conn = get_db()
+    cursor = conn.cursor()
+    active_date = (datetime.today() + timedelta(days=2)).strftime("%Y-%m-%d")
+    listing_id = _create_listing(
+        cursor,
+        phone=ux_user["phone"],
+        title=f"Active Detail UX {uuid.uuid4()}",
+        leave_date=active_date,
+    )
+    conn.commit()
+    conn.close()
+
+    response = client.get(f"/listing/{listing_id}")
+    html = response.data.decode()
+
+    assert response.status_code == 200
+    assert 'class="cta whatsapp"' in html
+    assert "https://wa.me/" in html
+    assert "whatsapp-icon" in html
 
 
 def test_create_listing_rejects_past_leave_date_before_upload(client, ux_user):

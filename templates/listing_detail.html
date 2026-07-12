@@ -691,9 +691,15 @@
 
             {% if is_expired %}
                 <span class="cta disabled" aria-disabled="true">Contact unavailable - listing expired</span>
+            {% elif not whatsapp_url %}
+                <span class="cta disabled" aria-disabled="true">Contact unavailable</span>
             {% else %}
-                {% set wa_message = "Hi%2C%20I%27m%20interested%20in%20%22" ~ item['title'] ~ "%22%20listed%20on%20Azison%20for%20" ~ item['price'] ~ "%20XAF." %}
-                <a class="cta" href="https://wa.me/{{ item['phone'] }}?text={{ wa_message }}" target="_blank" rel="noopener">💬 Contact on WhatsApp</a>
+                <a class="cta whatsapp" href="{{ whatsapp_url }}" target="_blank" rel="noopener">
+                    <svg class="whatsapp-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path d="M20.5 3.5A11.8 11.8 0 0 0 12.1 0C5.6 0 .3 5.3.3 11.8c0 2.1.5 4.1 1.6 5.9L0 24l6.5-1.7a11.8 11.8 0 0 0 5.6 1.4h.1c6.5 0 11.8-5.3 11.8-11.8 0-3.1-1.2-6.1-3.5-8.4ZM12.2 21.7h-.1c-1.8 0-3.5-.5-5-1.4l-.4-.2-3.9 1 1-3.8-.2-.4a9.8 9.8 0 0 1-1.5-5.1c0-5.4 4.4-9.8 9.9-9.8 2.6 0 5.1 1 7 2.9a9.8 9.8 0 0 1 2.9 7c.1 5.4-4.3 9.8-9.7 9.8Zm5.4-7.3c-.3-.1-1.8-.9-2-.9-.3-.1-.5-.1-.7.1-.2.3-.8.9-.9 1.1-.2.2-.3.2-.6.1a8 8 0 0 1-2.3-1.4 8.7 8.7 0 0 1-1.6-2c-.2-.3 0-.5.1-.6l.5-.6c.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5 0-.1-.7-1.7-.9-2.3-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.4s1 2.8 1.2 3c.1.2 2 3.1 4.9 4.3.7.3 1.2.5 1.6.6.7.2 1.3.2 1.8.1.6-.1 1.8-.7 2-1.4.2-.7.2-1.3.2-1.4-.1.1-.2 0-.5-.1Z"/>
+                    </svg>
+                    Contact on WhatsApp
+                </a>
             {% endif %}
         </article>
 

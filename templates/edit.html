@@ -274,15 +274,16 @@
                 </div>
             {% endif %}
 
-            <form method="POST" action="/update/{{ listing['id'] }}" enctype="multipart/form-data">
+            <form method="POST" action="/update/{{ listing['id'] }}" enctype="multipart/form-data" id="edit-listing-form">
                 <div class="field">
                     <label for="title">Item Name</label>
                     <input id="title" type="text" name="title" value="{{ listing['title'] }}" required>
                 </div>
 
                 <div class="field">
-                    <label for="price">Price</label>
+                    <label for="price">Price (XAF)</label>
                     <input id="price" type="number" name="price" min="500" max="50000000" step="1" value="{{ listing['price'] }}" required>
+                    <p class="field-hint">Price in XAF. Minimum 500, maximum 50,000,000.</p>
                 </div>
 
                 <div class="field">
@@ -310,10 +311,11 @@
                 <div class="field">
                     <label for="phone">Phone Number</label>
                     <input id="phone" type="text" name="phone" inputmode="numeric" pattern="^[0-9+ ]{9,16}$" value="{{ listing['phone'] }}" required>
+                    <p class="field-hint">Cameroon mobile number buyers can contact on WhatsApp.</p>
                 </div>
 
                 <div class="field">
-                    <label for="description">Description</label>
+                    <label for="description">Description <span class="word-count" id="word-count-display">0 / {{ description_max_words }} words</span></label>
                     <textarea id="description" name="description">{{ listing['description'] or '' }}</textarea>
                     <p class="field-hint">Optional. Keep it under {{ description_max_words }} words.</p>
                 </div>
@@ -329,6 +331,9 @@
                     <label for="image">Replace Image (optional)</label>
                     <input id="image" type="file" name="image" accept="image/*">
                     <p class="field-hint" id="image-size-hint" style="color: var(--danger); display: none;"></p>
+                    <div id="image-preview-container" style="display:none; margin-top: 8px;">
+                        <img id="image-preview" style="max-width:100%; max-height:200px; border-radius:10px; border:1px solid var(--line);" alt="Replacement preview">
+                    </div>
                 </div>
 
                 <div class="actions">
@@ -344,7 +349,33 @@
             var MAX_SIZE_BYTES = 5 * 1024 * 1024;
             var imageInput = document.getElementById('image');
             var hintEl = document.getElementById('image-size-hint');
-            var form = document.querySelector('form');
+            var previewContainer = document.getElementById('image-preview-container');
+            var previewImage = document.getElementById('image-preview');
+            var description = document.getElementById('description');
+            var wordCountDisplay = document.getElementById('word-count-display');
+            var form = document.getElementById('edit-listing-form');
+
+            function updateWordCount() {
+                var text = description.value.trim();
+                var count = text ? text.split(/\s+/).length : 0;
+                wordCountDisplay.textContent = count + ' / {{ description_max_words }} words';
+                wordCountDisplay.style.color = count > {{ description_max_words }} ? 'var(--danger)' : '';
+            }
+
+            function previewSelectedImage() {
+                if (imageInput.files && imageInput.files[0]) {
+                    var reader = new FileReader();
+                    reader.onload = function(e) {
+                        previewImage.src = e.target.result;
+                        previewContainer.style.display = 'block';
+                    };
+                    reader.readAsDataURL(imageInput.files[0]);
+                    return;
+                }
+
+                previewContainer.style.display = 'none';
+                previewImage.src = '';
+            }
 
             function validateFileSize() {
                 if (imageInput.files && imageInput.files.length > 0) {
@@ -361,7 +392,13 @@
                 return true;
             }
 
-            imageInput.addEventListener('change', validateFileSize);
+            imageInput.addEventListener('change', function() {
+                validateFileSize();
+                previewSelectedImage();
+            });
+
+            description.addEventListener('input', updateWordCount);
+            updateWordCount();
 
             form.addEventListener('submit', function(e) {
                 if (!validateFileSize()) {
