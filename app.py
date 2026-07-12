@@ -550,6 +550,19 @@ def format_payment_date(raw_datetime):
     return parsed.strftime("%b %d, %Y at %H:%M").replace(" 0", " ")
 
 
+def format_date_label(raw_datetime):
+    raw_datetime = (raw_datetime or "").strip()
+    if not raw_datetime:
+        return "Not available"
+
+    try:
+        parsed = datetime.fromisoformat(raw_datetime.replace("Z", "+00:00"))
+    except ValueError:
+        return raw_datetime[:10] if len(raw_datetime) >= 10 else raw_datetime
+
+    return parsed.strftime("%b %d, %Y").replace(" 0", " ")
+
+
 def format_xaf_amount(amount):
     try:
         return f"{int(amount):,} XAF"
@@ -583,6 +596,40 @@ def build_dashboard_payment_view(payment_row):
         "created_label": format_payment_date(payment_row["created_at"]),
         "can_check": normalized_status == PAYMENT_STATUS_PENDING,
     }
+
+
+def row_value(row, key, default=""):
+    try:
+        value = row[key]
+    except (KeyError, IndexError):
+        return default
+    return default if value is None else value
+
+
+def table_has_column(cursor, table_name, column_name):
+    if table_name not in POSTGRES_TABLES:
+        return False
+
+    if USE_POSTGRES:
+        cursor.execute(
+            """
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = ?
+              AND column_name = ?
+            LIMIT 1
+            """,
+            (table_name, column_name),
+        )
+        return cursor.fetchone() is not None
+
+    cursor.execute(f"PRAGMA table_info({table_name})")
+    return any(row["name"] == column_name for row in cursor.fetchall())
+
+
+def current_timestamp_iso():
+    return datetime.utcnow().isoformat(timespec="seconds")
 
 
 def payment_next_url(default_url):
@@ -1395,7 +1442,8 @@ def init_db():
             description TEXT,
             image TEXT,
             is_featured INTEGER DEFAULT 0,
-            view_count INTEGER DEFAULT 0
+            view_count INTEGER DEFAULT 0,
+            updated_at TEXT
         )
         """
     )
@@ -1406,6 +1454,8 @@ def init_db():
         cursor.execute("ALTER TABLE listings ADD COLUMN owner_phone TEXT")
     if "view_count" not in columns:
         cursor.execute("ALTER TABLE listings ADD COLUMN view_count INTEGER DEFAULT 0")
+    if "updated_at" not in columns:
+        cursor.execute("ALTER TABLE listings ADD COLUMN updated_at TEXT")
 
     cursor.execute("UPDATE listings SET owner_phone = phone WHERE owner_phone IS NULL OR owner_phone = ''")
     cursor.execute("UPDATE listings SET view_count = 0 WHERE view_count IS NULL")
@@ -1694,6 +1744,7 @@ def home():
         is_expired = days_left < 0
 
         owner_phone = item["owner_phone"] or ""
+        updated_at = row_value(item, "updated_at")
         listing_data = {
             "id": item["id"],
             "title": item["title"],
@@ -1707,6 +1758,7 @@ def home():
             "is_featured": item["is_featured"],
             "days_left": days_left,
             "is_expired": is_expired,
+            "last_updated_label": format_payment_date(updated_at) if updated_at else "",
             "can_manage": bool(user_phone and user_phone == owner_phone),
         }
 
@@ -2002,6 +2054,7 @@ def dashboard():
         is_expired = days_left < 0
         is_soon = 0 <= days_left <= 3
         is_featured = row["is_featured"] == 1
+        updated_at = row_value(row, "updated_at")
 
         stats["total"] += 1
         if is_featured:
@@ -2029,6 +2082,7 @@ def dashboard():
                 "is_soon": is_soon,
                 "pending_payment_reference": pending_payments_by_listing.get(row["id"], ""),
                 "view_count": row["view_count"],
+                "last_updated_label": format_payment_date(updated_at) if updated_at else "",
             }
         )
 
@@ -2110,10 +2164,16 @@ def add_listing():
         return render_create_errors(["Image upload failed. Please try again."])
     is_featured = 0
 
-    cursor.execute(
-        "INSERT INTO listings (title, price, category, phone, owner_phone, leave_date, description, image, is_featured) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (title, price, category, phone, owner_phone, leave_date, description, image_url, is_featured),
-    )
+    if table_has_column(cursor, "listings", "updated_at"):
+        cursor.execute(
+            "INSERT INTO listings (title, price, category, phone, owner_phone, leave_date, description, image, is_featured, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (title, price, category, phone, owner_phone, leave_date, description, image_url, is_featured, current_timestamp_iso()),
+        )
+    else:
+        cursor.execute(
+            "INSERT INTO listings (title, price, category, phone, owner_phone, leave_date, description, image, is_featured) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (title, price, category, phone, owner_phone, leave_date, description, image_url, is_featured),
+        )
     listing_id = cursor.lastrowid
 
     conn.commit()
@@ -2283,10 +2343,16 @@ def update_listing(id):
 
     is_featured = 1 if current_listing["is_featured"] == 1 else 0
 
-    cursor.execute(
-        "UPDATE listings SET title = ?, price = ?, category = ?, phone = ?, leave_date = ?, description = ?, image = ?, is_featured = ? WHERE id = ? AND owner_phone = ?",
-        (title, price, category, phone, leave_date, description, image_url, is_featured, id, owner_phone),
-    )
+    if table_has_column(cursor, "listings", "updated_at"):
+        cursor.execute(
+            "UPDATE listings SET title = ?, price = ?, category = ?, phone = ?, leave_date = ?, description = ?, image = ?, is_featured = ?, updated_at = ? WHERE id = ? AND owner_phone = ?",
+            (title, price, category, phone, leave_date, description, image_url, is_featured, current_timestamp_iso(), id, owner_phone),
+        )
+    else:
+        cursor.execute(
+            "UPDATE listings SET title = ?, price = ?, category = ?, phone = ?, leave_date = ?, description = ?, image = ?, is_featured = ? WHERE id = ? AND owner_phone = ?",
+            (title, price, category, phone, leave_date, description, image_url, is_featured, id, owner_phone),
+        )
     conn.commit()
     conn.close()
 
@@ -2299,8 +2365,22 @@ def listing_detail(id):
     conn = get_db()
     cursor = conn.cursor()
     user_phone = get_session_phone()
+    today_str = current_date_iso()
 
-    cursor.execute("SELECT * FROM listings WHERE id = ?", (id,))
+    listing_detail_query = """
+        SELECT l.*, u.full_name AS seller_name, u.created_at AS seller_created_at,
+               (
+                   SELECT COUNT(*)
+                   FROM listings active_listing
+                   WHERE active_listing.owner_phone = l.owner_phone
+                     AND active_listing.leave_date >= ?
+               ) AS seller_active_listing_count
+        FROM listings l
+        LEFT JOIN users u ON u.phone = l.owner_phone
+        WHERE l.id = ?
+    """
+
+    cursor.execute(listing_detail_query, (today_str, id))
     item = cursor.fetchone()
 
     if item is None:
@@ -2322,7 +2402,7 @@ def listing_detail(id):
         viewed_listings.add(id)
         session["viewed_listings"] = list(viewed_listings) # Store as list in session for JSON serialization
         # Refresh item to get updated view_count
-        cursor.execute("SELECT * FROM listings WHERE id = ?", (id,))
+        cursor.execute(listing_detail_query, (today_str, id))
         item = cursor.fetchone()
 
     can_manage = bool(user_phone and (item["owner_phone"] or "") == user_phone)
@@ -2356,6 +2436,14 @@ def listing_detail(id):
     leave_date = datetime.strptime(item["leave_date"], "%Y-%m-%d").date()
     days_left = (leave_date - today).days
     is_expired = days_left < 0
+    updated_at = row_value(item, "updated_at")
+    seller_created_at = row_value(item, "seller_created_at")
+    seller_info = {
+        "name": row_value(item, "seller_name") or "Seller",
+        "member_since_label": format_date_label(seller_created_at) if seller_created_at else "",
+        "active_listing_count": row_value(item, "seller_active_listing_count", 0) or 0,
+        "last_updated_label": format_payment_date(updated_at) if updated_at else "",
+    }
     whatsapp_phone = normalize_phone(item["phone"])
     whatsapp_url = ""
     if not is_expired and whatsapp_phone:
@@ -2400,6 +2488,7 @@ def listing_detail(id):
         report_reasons=REPORT_REASONS,
         report_comment_max_length=REPORT_COMMENT_MAX_LENGTH,
         whatsapp_url=whatsapp_url,
+        seller_info=seller_info,
     )
 
 

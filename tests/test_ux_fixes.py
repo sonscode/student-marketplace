@@ -22,6 +22,11 @@ def client():
 def ux_user():
     conn = get_db()
     cursor = conn.cursor()
+    cursor.execute("PRAGMA table_info(listings)")
+    listing_columns = {row["name"] for row in cursor.fetchall()}
+    if "updated_at" not in listing_columns:
+        cursor.execute("ALTER TABLE listings ADD COLUMN updated_at TEXT")
+
     phone = _unique_phone()
     created_at = datetime.now(UTC).replace(tzinfo=None).isoformat(timespec="seconds")
     cursor.execute(
@@ -31,7 +36,7 @@ def ux_user():
     user_id = cursor.lastrowid
     conn.commit()
 
-    yield {"id": user_id, "phone": phone}
+    yield {"id": user_id, "phone": phone, "created_at": created_at}
 
     cursor.execute("DELETE FROM listings WHERE owner_phone = ?", (phone,))
     cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
@@ -39,14 +44,23 @@ def ux_user():
     conn.close()
 
 
-def _create_listing(cursor, *, phone, title, leave_date, is_featured=0):
-    cursor.execute(
-        """
-        INSERT INTO listings (title, price, category, phone, owner_phone, leave_date, description, image, is_featured)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (title, "1500", "Other", phone, phone, leave_date, "Regression listing", "", is_featured),
-    )
+def _create_listing(cursor, *, phone, title, leave_date, is_featured=0, updated_at=None):
+    if updated_at:
+        cursor.execute(
+            """
+            INSERT INTO listings (title, price, category, phone, owner_phone, leave_date, description, image, is_featured, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (title, "1500", "Other", phone, phone, leave_date, "Regression listing", "", is_featured, updated_at),
+        )
+    else:
+        cursor.execute(
+            """
+            INSERT INTO listings (title, price, category, phone, owner_phone, leave_date, description, image, is_featured)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (title, "1500", "Other", phone, phone, leave_date, "Regression listing", "", is_featured),
+        )
     return cursor.lastrowid
 
 
@@ -163,6 +177,40 @@ def test_active_listing_detail_uses_whatsapp_contact_button(client, ux_user):
     assert 'class="cta whatsapp"' in html
     assert "https://wa.me/" in html
     assert "whatsapp-icon" in html
+
+
+def test_listing_detail_shows_seller_trust_information(client, ux_user):
+    conn = get_db()
+    cursor = conn.cursor()
+    active_date = (datetime.today() + timedelta(days=5)).strftime("%Y-%m-%d")
+    updated_at = "2026-01-02T03:04:00"
+    listing_id = _create_listing(
+        cursor,
+        phone=ux_user["phone"],
+        title=f"Trust Detail UX {uuid.uuid4()}",
+        leave_date=active_date,
+        updated_at=updated_at,
+    )
+    _create_listing(
+        cursor,
+        phone=ux_user["phone"],
+        title=f"Trust Count UX {uuid.uuid4()}",
+        leave_date=active_date,
+    )
+    conn.commit()
+    conn.close()
+
+    response = client.get(f"/listing/{listing_id}")
+    html = response.data.decode()
+    expected_member_since = datetime.fromisoformat(ux_user["created_at"]).strftime("%b %d, %Y").replace(" 0", " ")
+
+    assert response.status_code == 200
+    assert "Member Since" in html
+    assert expected_member_since in html
+    assert "Seller Active Listings" in html
+    assert ">2</strong>" in html
+    assert "Last Updated" in html
+    assert "Jan 2, 2026 at 3:04" in html
 
 
 def test_create_listing_rejects_past_leave_date_before_upload(client, ux_user):

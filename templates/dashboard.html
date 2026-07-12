@@ -445,6 +445,9 @@
                                     <span class="chip expired">Expired</span>
                                 {% endif %}
                                 <span class="chip">👁 {{ item['view_count'] or 0 }} views</span>
+                                {% if item['last_updated_label'] %}
+                                    <span class="chip">Updated {{ item['last_updated_label'] }}</span>
+                                {% endif %}
                             </div>
 
                             <div class="row-actions">

@@ -624,6 +624,22 @@
                     <span class="label">Views</span>
                     <strong>👁 {{ item['view_count'] or 0 }} views</strong>
                 </div>
+                <div class="field">
+                    <span class="label">Seller</span>
+                    <strong>{{ seller_info['name'] }}</strong>
+                </div>
+                <div class="field">
+                    <span class="label">Member Since</span>
+                    <strong>{{ seller_info['member_since_label'] or 'Not available' }}</strong>
+                </div>
+                <div class="field">
+                    <span class="label">Seller Active Listings</span>
+                    <strong>{{ seller_info['active_listing_count'] }}</strong>
+                </div>
+                <div class="field">
+                    <span class="label">Last Updated</span>
+                    <strong>{{ seller_info['last_updated_label'] or 'Not available' }}</strong>
+                </div>
             </section>
 
             <section>
