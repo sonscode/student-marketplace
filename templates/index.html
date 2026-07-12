@@ -452,20 +452,87 @@
             background: var(--card);
             border: 1px solid var(--line);
             border-radius: 14px;
-            padding: 10px 12px;
+            padding: 10px;
         }
+
+        .filter-panel {
+            display: grid;
+            gap: 8px;
+        }
+
+        .filter-toggle {
+            display: inline-flex;
+            width: fit-content;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            list-style: none;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: #fff;
+            color: var(--text);
+            padding: 8px 12px;
+            font-weight: 800;
+            cursor: pointer;
+            user-select: none;
+            transition: transform 0.12s ease, box-shadow 0.12s ease;
+        }
+
+        .filter-toggle:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 18px rgba(26, 21, 10, 0.08);
+        }
+
+        .filter-toggle::-webkit-details-marker {
+            display: none;
+        }
+
+        .filter-toggle::after {
+            content: "▾";
+            color: var(--muted);
+            font-size: 0.8rem;
+            transition: transform 0.14s ease;
+        }
+
+        .filter-panel[open] .filter-toggle::after {
+            transform: rotate(180deg);
+        }
+
+        .filter-count {
+            min-width: 20px;
+            border-radius: 999px;
+            background: var(--chip);
+            color: var(--text);
+            padding: 2px 7px;
+            font-size: 0.74rem;
+            line-height: 1.4;
+            text-align: center;
+        }
+
         .filter-form {
-            display: flex;
-            flex-wrap: wrap;
+            display: grid;
+            grid-template-columns: minmax(210px, 1.3fr) minmax(150px, 0.8fr) minmax(170px, 0.9fr) auto;
             gap: 10px;
-            align-items: flex-end;
+            align-items: end;
         }
+
         .filter-group {
             display: flex;
             flex-wrap: wrap;
             gap: 6px;
             align-items: center;
         }
+
+        .filter-group.price-group {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr auto;
+            align-items: center;
+        }
+
+        .filter-group.price-group label {
+            grid-column: 1 / -1;
+        }
+
         .filter-group label {
             font-size: 0.78rem;
             font-weight: 700;
@@ -473,8 +540,10 @@
             text-transform: uppercase;
             letter-spacing: 0.04em;
         }
+
         .filter-group input,
         .filter-group select {
+            width: 100%;
             border: 1px solid var(--line);
             border-radius: 8px;
             padding: 6px 8px;
@@ -484,9 +553,87 @@
             color: var(--text);
         }
 
+        .filter-submit {
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: #fff;
+            color: var(--text);
+            padding: 8px 12px;
+            font-weight: 800;
+            font-family: inherit;
+            cursor: pointer;
+            transition: transform 0.12s ease, box-shadow 0.12s ease;
+        }
+
+        .filter-submit:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 18px rgba(26, 21, 10, 0.08);
+        }
+
         @media (max-width: 680px) {
+            .controls {
+                gap: 9px;
+                margin-bottom: 14px;
+            }
+
             .search {
                 grid-template-columns: 1fr;
+                gap: 6px;
+                padding: 7px;
+            }
+
+            .search input {
+                min-height: 40px;
+            }
+
+            .chips {
+                flex-wrap: nowrap;
+                gap: 6px;
+                margin-inline: -4vw;
+                padding: 0 4vw 3px;
+                overflow-x: auto;
+                scrollbar-width: none;
+            }
+
+            .chips::-webkit-scrollbar {
+                display: none;
+            }
+
+            .chip {
+                flex: 0 0 auto;
+                padding: 6px 10px;
+                font-size: 0.84rem;
+            }
+
+            .filter-panel {
+                gap: 7px;
+            }
+
+            .filter-toggle {
+                width: 100%;
+                min-height: 40px;
+                justify-content: center;
+            }
+
+            .filter-row {
+                padding: 9px;
+            }
+
+            .filter-form {
+                grid-template-columns: 1fr;
+                gap: 9px;
+            }
+
+            .filter-group {
+                align-items: stretch;
+            }
+
+            .filter-group.price-group {
+                grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+            }
+
+            .filter-submit {
+                min-height: 40px;
             }
 
             .card {
@@ -536,6 +683,7 @@
             {% set active_sort = request.args.get('sort') %}
             {% set active_min = request.args.get('min_price', '') %}
             {% set active_max = request.args.get('max_price', '') %}
+            {% set active_filter_count = (1 if active_min else 0) + (1 if active_max else 0) + (1 if active_show else 0) + (1 if active_sort and active_sort not in ('', 'newest') else 0) %}
             <div class="chips">
                 <a class="chip {% if not active_category %}active{% endif %}" href="{{ url_for('home', search=active_search, min_price=active_min, max_price=active_max, show=active_show, sort=active_sort) }}">All</a>
                 <a class="chip {% if active_category == 'Furniture' %}active{% endif %}" href="{{ url_for('home', category='Furniture', search=active_search, min_price=active_min, max_price=active_max, show=active_show, sort=active_sort) }}">Furniture</a>
@@ -546,38 +694,46 @@
                 <a class="chip {% if active_category == 'Other' %}active{% endif %}" href="{{ url_for('home', category='Other', search=active_search, min_price=active_min, max_price=active_max, show=active_show, sort=active_sort) }}">Other</a>
             </div>
 
-            <div class="filter-row">
-                <form class="filter-form" action="/" method="get">
-                    {% if active_search %}<input type="hidden" name="search" value="{{ active_search }}">{% endif %}
-                    {% if active_category %}<input type="hidden" name="category" value="{{ active_category }}">{% endif %}
-                    <div class="filter-group">
-                        <label for="min_price">Price</label>
-                        <input id="min_price" type="number" name="min_price" placeholder="Min" min="0" value="{{ active_min }}" style="width:90px;">
-                        <span style="color:var(--muted);font-size:0.85rem;">—</span>
-                        <input type="number" name="max_price" placeholder="Max" min="0" value="{{ active_max }}" style="width:90px;">
-                        <span style="color:var(--muted);font-size:0.85rem;white-space:nowrap;">XAF</span>
-                    </div>
-                    <div class="filter-group">
-                        <label for="show">Show</label>
-                        <select id="show" name="show">
-                            <option value="" {% if not active_show %}selected{% endif %}>All listings</option>
-                            <option value="active" {% if active_show == 'active' %}selected{% endif %}>Active only</option>
-                            <option value="featured" {% if active_show == 'featured' %}selected{% endif %}>Featured only</option>
-                            <option value="expired" {% if active_show == 'expired' %}selected{% endif %}>Expired only</option>
-                        </select>
-                    </div>
-                    <div class="filter-group">
-                        <label for="sort">Sort</label>
-                        <select id="sort" name="sort">
-                            <option value="newest" {% if not active_sort or active_sort == 'newest' %}selected{% endif %}>Newest first</option>
-                            <option value="price_asc" {% if active_sort == 'price_asc' %}selected{% endif %}>Price: low→high</option>
-                            <option value="price_desc" {% if active_sort == 'price_desc' %}selected{% endif %}>Price: high→low</option>
-                            <option value="ending_soon" {% if active_sort == 'ending_soon' %}selected{% endif %}>Ending soon</option>
-                        </select>
-                    </div>
-                    <button type="submit" style="padding:7px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;font-weight:700;font-family:inherit;cursor:pointer;">Filter</button>
-                </form>
-            </div>
+            <details class="filter-panel" {% if active_filter_count > 0 %}open{% endif %}>
+                <summary class="filter-toggle">
+                    Filters
+                    {% if active_filter_count > 0 %}
+                        <span class="filter-count">{{ active_filter_count }}</span>
+                    {% endif %}
+                </summary>
+                <div class="filter-row">
+                    <form class="filter-form" action="/" method="get">
+                        {% if active_search %}<input type="hidden" name="search" value="{{ active_search }}">{% endif %}
+                        {% if active_category %}<input type="hidden" name="category" value="{{ active_category }}">{% endif %}
+                        <div class="filter-group">
+                            <label for="min_price">Price</label>
+                            <input id="min_price" type="number" name="min_price" placeholder="Min" min="0" value="{{ active_min }}" style="width:90px;">
+                            <span style="color:var(--muted);font-size:0.85rem;">—</span>
+                            <input type="number" name="max_price" placeholder="Max" min="0" value="{{ active_max }}" style="width:90px;">
+                            <span style="color:var(--muted);font-size:0.85rem;white-space:nowrap;">XAF</span>
+                        </div>
+                        <div class="filter-group">
+                            <label for="show">Show</label>
+                            <select id="show" name="show">
+                                <option value="" {% if not active_show %}selected{% endif %}>All listings</option>
+                                <option value="active" {% if active_show == 'active' %}selected{% endif %}>Active only</option>
+                                <option value="featured" {% if active_show == 'featured' %}selected{% endif %}>Featured only</option>
+                                <option value="expired" {% if active_show == 'expired' %}selected{% endif %}>Expired only</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="sort">Sort</label>
+                            <select id="sort" name="sort">
+                                <option value="newest" {% if not active_sort or active_sort == 'newest' %}selected{% endif %}>Newest first</option>
+                                <option value="price_asc" {% if active_sort == 'price_asc' %}selected{% endif %}>Price: low→high</option>
+                                <option value="price_desc" {% if active_sort == 'price_desc' %}selected{% endif %}>Price: high→low</option>
+                                <option value="ending_soon" {% if active_sort == 'ending_soon' %}selected{% endif %}>Ending soon</option>
+                            </select>
+                        </div>
+                        <button class="filter-submit" type="submit">Filter</button>
+                    </form>
+                </div>
+            </details>
         </section>
 
         <section class="list">
