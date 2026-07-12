@@ -499,7 +499,12 @@
                 {% for item in listings %}
                     <article class="card">
                         <div>
-                            <h2>{{ item['title'] }}</h2>
+                            <h2 style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;">
+                                {{ item['title'] }}
+                                {% if item['is_featured'] == 1 %}
+                                    <span class="chip featured" style="font-size:0.7rem;padding:2px 7px;">🔥 Featured</span>
+                                {% endif %}
+                            </h2>
                             <p class="meta">
                                 <span><strong>{{ item['price'] }}</strong></span>
                                 <span>•</span>
@@ -523,9 +528,6 @@
                             {% endif %}
 
                             <div class="chips">
-                                {% if item['is_featured'] == 1 %}
-                                    <span class="chip featured"><span class="featured-icon" aria-hidden="true">🔥</span> Featured</span>
-                                {% endif %}
                                 {% if current_user and current_user.get('is_verified') %}
                                     <span class="chip verified">Verified Seller</span>
                                 {% endif %}

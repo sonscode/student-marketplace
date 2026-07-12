@@ -852,10 +852,13 @@
                     {% set detail_url = url_for('listing_detail', id=item['id'], category=request.args.get('category'), search=request.args.get('search')) %}
                     <article class="card clickable" data-href="{{ detail_url }}" tabindex="0" role="link" aria-label="Open listing: {{ item['title'] }}">
                         <div class="card-body">
-                            <h2>
+                            <h2 style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;">
                                 <a href="{{ detail_url }}">
                                     {{ item['title'] | highlight(search) }}
                                 </a>
+                                {% if item['is_featured'] == 1 %}
+                                    <span class="badge featured" style="font-size:0.7rem;padding:2px 7px;">🔥 Featured</span>
+                                {% endif %}
                             </h2>
 
                             <p class="meta">
@@ -883,9 +886,6 @@
                             {% endif %}
 
                             <div class="badges">
-                                {% if item['is_featured'] == 1 %}
-                                    <span class="badge featured">🔥 Featured</span>
-                                {% endif %}
                                 {% if item['seller_is_verified'] %}
                                     <span class="badge verified">Verified Seller</span>
                                 {% endif %}

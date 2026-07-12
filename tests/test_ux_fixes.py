@@ -416,7 +416,8 @@ def test_dashboard_displays_featured_and_payment_status_icons(client, ux_user):
     html = response.data.decode()
 
     assert response.status_code == 200
-    assert '<span class="featured-icon" aria-hidden="true">🔥</span> Featured' in html
+    assert '🔥 Featured' in html
+    assert 'class="chip featured"' in html
     for icon, label in (
         ("✅", "Completed"),
         ("⏳", "Pending"),
