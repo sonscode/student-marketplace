@@ -127,13 +127,40 @@
     .nav-inner {
         flex-direction: column;
         align-items: stretch;
-        padding: 8px 0;
+        padding: 6px 0;
+        gap: 8px;
     }
     .nav-links {
         justify-content: center;
+        gap: 5px;
+    }
+    .nav-link {
+        padding: 6px 9px;
+        font-size: 0.78rem;
+    }
+    .nav-brand .brand {
+        font-size: 1rem;
+    }
+    .nav-brand .site-title {
+        font-size: 0.78rem;
     }
     .nav-user {
         display: none;
+    }
+}
+
+@media (max-width: 380px) {
+    .nav-links {
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+    .nav-link {
+        flex: 1;
+        justify-content: center;
+        min-width: 0;
+        padding: 5px 6px;
+        font-size: 0.72rem;
+        white-space: nowrap;
     }
 }
 </style>

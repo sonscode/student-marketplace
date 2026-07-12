@@ -571,9 +571,28 @@
         }
 
         @media (max-width: 680px) {
+            .page {
+                margin: 18px auto 28px;
+            }
+
             .controls {
                 gap: 9px;
-                margin-bottom: 14px;
+                margin-bottom: 12px;
+            }
+
+            .header {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+                margin-bottom: 12px;
+            }
+
+            .header-actions {
+                justify-content: stretch;
+            }
+
+            .header-actions .btn {
+                flex: 1;
             }
 
             .search {
@@ -584,6 +603,13 @@
 
             .search input {
                 min-height: 40px;
+                font-size: 16px; /* prevent iOS zoom */
+            }
+
+            .search button,
+            .search .clear-btn {
+                min-height: 40px;
+                justify-content: center;
             }
 
             .chips {
@@ -601,8 +627,8 @@
 
             .chip {
                 flex: 0 0 auto;
-                padding: 6px 10px;
-                font-size: 0.84rem;
+                padding: 5px 9px;
+                font-size: 0.82rem;
             }
 
             .filter-panel {
@@ -636,13 +662,77 @@
                 min-height: 40px;
             }
 
+            .list {
+                gap: 10px;
+            }
+
             .card {
                 grid-template-columns: 1fr;
+                padding: 12px;
+                gap: 10px;
+            }
+
+            .card-body h2 {
+                font-size: 1rem;
+                margin-bottom: 4px;
+            }
+
+            .meta {
+                font-size: 0.85rem;
+                gap: 5px;
+            }
+
+            .summary {
+                font-size: 0.88rem;
+                line-height: 1.4;
+                margin-top: 6px;
+                display: -webkit-box;
+                -webkit-line-clamp: 2;
+                -webkit-box-orient: vertical;
+                overflow: hidden;
+            }
+
+            .badges {
+                margin-top: 6px;
+                gap: 5px;
+            }
+
+            .badge {
+                font-size: 0.72rem;
+                padding: 3px 7px;
+            }
+
+            .actions {
+                margin-top: 8px;
+                gap: 6px;
+            }
+
+            .action-link,
+            .action-btn {
+                padding: 6px 9px;
+                font-size: 0.8rem;
             }
 
             .thumb {
                 width: 100%;
-                height: 180px;
+                height: 140px;
+            }
+
+            .thumb-link {
+                width: 100%;
+            }
+
+            .empty {
+                padding: 14px;
+            }
+
+            .flash {
+                padding: 8px 10px;
+                font-size: 0.85rem;
+            }
+
+            .listing-section-heading h2 {
+                font-size: 0.95rem;
             }
         }
     </style>
