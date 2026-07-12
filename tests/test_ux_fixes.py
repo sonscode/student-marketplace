@@ -264,6 +264,49 @@ def test_non_admin_cannot_toggle_seller_verification(client, ux_user):
     assert seller["is_verified"] == 0
 
 
+def test_admin_user_action_forms_are_not_nested_in_bulk_delete_form(client, ux_user):
+    conn = get_db()
+    cursor = conn.cursor()
+    admin_phone = _unique_phone()
+    created_at = datetime.now(UTC).replace(tzinfo=None).isoformat(timespec="seconds")
+    cursor.execute(
+        """
+        INSERT INTO users (full_name, phone, password_hash, auth_provider, is_admin, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        ("Form Admin", admin_phone, "fakehash", "local", 1, created_at),
+    )
+    admin_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+
+    try:
+        with client.session_transaction() as session:
+            session["user_id"] = admin_id
+            session["user_name"] = "Form Admin"
+            session["user_phone"] = admin_phone
+
+        response = client.get("/admin")
+        html = response.data.decode()
+
+        assert response.status_code == 200
+        bulk_form_start = html.index('id="bulk-delete-users-form"')
+        bulk_form_end = html.index("</form>", bulk_form_start)
+        users_table_start = html.index("<table>", bulk_form_end)
+        verify_form_start = html.index("/toggle-verified")
+
+        assert bulk_form_end < users_table_start
+        assert bulk_form_start < verify_form_start
+        assert not (bulk_form_start < verify_form_start < bulk_form_end)
+        assert 'form="bulk-delete-users-form" type="checkbox" name="user_ids"' in html
+    finally:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM users WHERE id = ?", (admin_id,))
+        conn.commit()
+        conn.close()
+
+
 def test_listing_detail_shows_seller_trust_information(client, ux_user):
     conn = get_db()
     cursor = conn.cursor()
