@@ -220,6 +220,11 @@
             color: #4b2db8;
         }
 
+        .badge.verified {
+            background: #dcfce7;
+            color: #166534;
+        }
+
         .danger-btn {
             border: 1px solid #f2c8c9;
             border-radius: 8px;
@@ -322,6 +327,7 @@
                                 <th>Provider</th>
                                 <th>Listings</th>
                                 <th>Role</th>
+                                <th>Verified</th>
                                 <th>Status</th>
                                 <th>Created</th>
                                 <th>Actions</th>
@@ -349,6 +355,13 @@
                                     {% endif %}
                                 </td>
                                 <td>
+                                    {% if u['is_verified'] %}
+                                        <span class="badge verified">Verified</span>
+                                    {% else %}
+                                        <span class="muted-text">Not verified</span>
+                                    {% endif %}
+                                </td>
+                                <td>
                                     {% if u['is_active'] %}
                                         <span class="badge active">Active</span>
                                     {% else %}
@@ -360,6 +373,15 @@
                                     {% if current_user and current_user.get('id') == u['id'] %}
                                         <span class="muted-text">—</span>
                                     {% else %}
+                                        {% if u['is_verified'] %}
+                                            <form method="POST" action="{{ url_for('admin_toggle_user_verified', user_id=u['id']) }}" onsubmit="return confirm('Remove seller verification?');">
+                                                <button class="danger-btn" type="submit">Unverify</button>
+                                            </form>
+                                        {% else %}
+                                            <form method="POST" action="{{ url_for('admin_toggle_user_verified', user_id=u['id']) }}" onsubmit="return confirm('Verify this seller?');">
+                                                <button class="success-btn" type="submit">Verify</button>
+                                            </form>
+                                        {% endif %}
                                         {% if u['is_active'] %}
                                             <form method="POST" action="{{ url_for('admin_toggle_user_active', user_id=u['id']) }}" onsubmit="return confirm('Deactivate this user?');">
                                                 <button class="danger-btn" type="submit">Deactivate</button>
@@ -420,7 +442,12 @@
                             <td>{{ item['title'] }}</td>
                             <td>{{ item['category'] }}</td>
                             <td>{{ item['price'] }}</td>
-                            <td>{{ item['owner_name'] }}</td>
+                            <td>
+                                {{ item['owner_name'] }}
+                                {% if item['owner_is_verified'] %}
+                                    <span class="badge verified">Verified</span>
+                                {% endif %}
+                            </td>
                             <td>{{ item['owner_phone'] }}</td>
                             <td>
                                 {% if item['is_expired'] %}

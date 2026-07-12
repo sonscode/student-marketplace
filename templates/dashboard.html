@@ -195,6 +195,16 @@
             color: rgb(71, 71, 71);
         }
 
+        .featured-icon,
+        .payment-status-icon {
+            display: inline-block;
+            line-height: 1;
+        }
+
+        .payment-status-icon {
+            margin-right: 0.2em;
+        }
+
         .thumb-link {
             display: block;
             width: 110px;
@@ -439,7 +449,10 @@
 
                             <div class="chips">
                                 {% if item['is_featured'] == 1 %}
-                                    <span class="chip featured">Featured</span>
+                                    <span class="chip featured"><span class="featured-icon" aria-hidden="true">🔥</span> Featured</span>
+                                {% endif %}
+                                {% if current_user and current_user.get('is_verified') %}
+                                    <span class="chip verified">Verified Seller</span>
                                 {% endif %}
                                 {% if item['is_expired'] %}
                                     <span class="chip expired">Expired</span>
@@ -497,7 +510,7 @@
                                 <a href="{{ url_for('listing_detail', id=payment['listing_id']) }}" style="color:var(--text);text-decoration:none;">{{ payment['listing_title'] }}</a>
                             </span>
                             <span><strong>{{ payment['amount_label'] }}</strong></span>
-                            <span class="{{ payment['badge_class'] }}">{{ payment['status_label'] }}</span>
+                            <span class="{{ payment['badge_class'] }}"><span class="payment-status-icon" aria-hidden="true">{{ payment['status_icon'] }}</span>{{ payment['status_label'] }}</span>
                             <span style="color:var(--muted);font-size:0.82rem;">{{ payment['created_label'] }}</span>
                             {% if payment['can_check'] %}
                                 <a class="link-btn" href="{{ url_for('verify_listing_payment', reference_id=payment['reference_id'], next=url_for('dashboard')) }}">Check</a>

@@ -626,7 +626,12 @@
                 </div>
                 <div class="field">
                     <span class="label">Seller</span>
-                    <strong>{{ seller_info['name'] }}</strong>
+                    <strong>
+                        {{ seller_info['name'] }}
+                        {% if seller_info['is_verified'] %}
+                            <span class="badge verified">Verified</span>
+                        {% endif %}
+                    </strong>
                 </div>
                 <div class="field">
                     <span class="label">Member Since</span>

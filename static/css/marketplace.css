@@ -361,6 +361,13 @@ input[type="file"] {
     color: var(--featured);
 }
 
+.badge.verified,
+.chip.verified,
+.mini-badge.verified {
+    background: #dcfce7;
+    color: #166534;
+}
+
 .chip.expired {
     background: #e2e8f0;
     color: #475569;

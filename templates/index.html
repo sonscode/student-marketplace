@@ -638,6 +638,9 @@
                                 {% if item['is_featured'] == 1 %}
                                     <span class="badge featured">🔥 Featured</span>
                                 {% endif %}
+                                {% if item['seller_is_verified'] %}
+                                    <span class="badge verified">Verified Seller</span>
+                                {% endif %}
                                 {% if item['is_expired'] %}
                                     <span class="badge expired">Expired</span>
                                 {% endif %}

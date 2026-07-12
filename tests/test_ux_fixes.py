@@ -27,6 +27,11 @@ def ux_user():
     if "updated_at" not in listing_columns:
         cursor.execute("ALTER TABLE listings ADD COLUMN updated_at TEXT")
 
+    cursor.execute("PRAGMA table_info(users)")
+    user_columns = {row["name"] for row in cursor.fetchall()}
+    if "is_verified" not in user_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN is_verified INTEGER DEFAULT 0")
+
     phone = _unique_phone()
     created_at = datetime.now(UTC).replace(tzinfo=None).isoformat(timespec="seconds")
     cursor.execute(
@@ -38,6 +43,10 @@ def ux_user():
 
     yield {"id": user_id, "phone": phone, "created_at": created_at}
 
+    cursor.execute(
+        "DELETE FROM payments WHERE listing_id IN (SELECT id FROM listings WHERE owner_phone = ?)",
+        (phone,),
+    )
     cursor.execute("DELETE FROM listings WHERE owner_phone = ?", (phone,))
     cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
     conn.commit()
@@ -179,6 +188,82 @@ def test_active_listing_detail_uses_whatsapp_contact_button(client, ux_user):
     assert "whatsapp-icon" in html
 
 
+def test_admin_can_toggle_seller_verification_and_badges_display(client, ux_user):
+    conn = get_db()
+    cursor = conn.cursor()
+    admin_phone = _unique_phone()
+    created_at = datetime.now(UTC).replace(tzinfo=None).isoformat(timespec="seconds")
+    cursor.execute(
+        """
+        INSERT INTO users (full_name, phone, password_hash, auth_provider, is_admin, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        ("Verification Admin", admin_phone, "fakehash", "local", 1, created_at),
+    )
+    admin_id = cursor.lastrowid
+    active_date = (datetime.today() + timedelta(days=3)).strftime("%Y-%m-%d")
+    listing_title = f"Verified Seller UX {uuid.uuid4()}"
+    listing_id = _create_listing(
+        cursor,
+        phone=ux_user["phone"],
+        title=listing_title,
+        leave_date=active_date,
+    )
+    conn.commit()
+    conn.close()
+
+    try:
+        with client.session_transaction() as session:
+            session["user_id"] = admin_id
+            session["user_name"] = "Verification Admin"
+            session["user_phone"] = admin_phone
+
+        response = client.post(f"/admin/users/{ux_user['id']}/toggle-verified")
+        assert response.status_code == 302
+
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("SELECT is_verified FROM users WHERE id = ?", (ux_user["id"],))
+        seller = cursor.fetchone()
+        conn.close()
+        assert seller["is_verified"] == 1
+
+        detail_response = client.get(f"/listing/{listing_id}")
+        detail_html = detail_response.data.decode()
+        assert detail_response.status_code == 200
+        assert "Verified" in detail_html
+
+        home_response = client.get("/")
+        home_html = home_response.data.decode()
+        assert home_response.status_code == 200
+        assert listing_title in home_html
+        assert "Verified Seller" in home_html
+    finally:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM users WHERE id = ?", (admin_id,))
+        conn.commit()
+        conn.close()
+
+
+def test_non_admin_cannot_toggle_seller_verification(client, ux_user):
+    with client.session_transaction() as session:
+        session["user_id"] = ux_user["id"]
+        session["user_name"] = "UX Test User"
+        session["user_phone"] = ux_user["phone"]
+
+    response = client.post(f"/admin/users/{ux_user['id']}/toggle-verified")
+
+    assert response.status_code == 403
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT is_verified FROM users WHERE id = ?", (ux_user["id"],))
+    seller = cursor.fetchone()
+    conn.close()
+    assert seller["is_verified"] == 0
+
+
 def test_listing_detail_shows_seller_trust_information(client, ux_user):
     conn = get_db()
     cursor = conn.cursor()
@@ -253,3 +338,48 @@ def test_styled_error_pages_replace_bare_403_and_404(client, ux_user):
     assert not_found_response.status_code == 404
     assert b"Listing not found" in not_found_response.data
     assert b"Go to Listings" in not_found_response.data
+
+
+def test_dashboard_displays_featured_and_payment_status_icons(client, ux_user):
+    conn = get_db()
+    cursor = conn.cursor()
+    active_date = (datetime.today() + timedelta(days=5)).strftime("%Y-%m-%d")
+    listing_id = _create_listing(
+        cursor,
+        phone=ux_user["phone"],
+        title=f"Dashboard Icons UX {uuid.uuid4()}",
+        leave_date=active_date,
+        is_featured=1,
+    )
+    created_at = datetime.now(UTC).replace(tzinfo=None).isoformat(timespec="seconds")
+    statuses = ("SUCCESSFUL", "PENDING", "FAILED", "CANCELLED", "REJECTED", "EXPIRED")
+    for status in statuses:
+        cursor.execute(
+            """
+            INSERT INTO payments (listing_id, reference, amount, status, phone, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (listing_id, f"ux-icons-{uuid.uuid4()}", 100, status, ux_user["phone"], created_at),
+        )
+    conn.commit()
+    conn.close()
+
+    with client.session_transaction() as session:
+        session["user_id"] = ux_user["id"]
+        session["user_name"] = "UX Test User"
+        session["user_phone"] = ux_user["phone"]
+
+    response = client.get("/dashboard")
+    html = response.data.decode()
+
+    assert response.status_code == 200
+    assert '<span class="featured-icon" aria-hidden="true">🔥</span> Featured' in html
+    for icon, label in (
+        ("✅", "Completed"),
+        ("⏳", "Pending"),
+        ("❌", "Failed"),
+        ("↩", "Cancelled"),
+        ("🚫", "Rejected"),
+        ("⏰", "Expired"),
+    ):
+        assert f'<span class="payment-status-icon" aria-hidden="true">{icon}</span>{label}' in html

@@ -573,14 +573,17 @@ def format_xaf_amount(amount):
 def build_dashboard_payment_view(payment_row):
     normalized_status = resolve_internal_payment_status(payment_row["status"]) or PAYMENT_STATUS_PENDING
     status_display = {
-        PAYMENT_STATUS_SUCCESSFUL: ("Completed", "chip featured"),
-        PAYMENT_STATUS_PENDING: ("Pending", "chip"),
-        PAYMENT_STATUS_FAILED: ("Failed", "chip expired"),
-        PAYMENT_STATUS_CANCELLED: ("Cancelled", "chip expired"),
-        PAYMENT_STATUS_REJECTED: ("Rejected", "chip expired"),
-        PAYMENT_STATUS_EXPIRED: ("Expired", "chip expired"),
+        PAYMENT_STATUS_SUCCESSFUL: ("Completed", "✅", "chip featured"),
+        PAYMENT_STATUS_PENDING: ("Pending", "⏳", "chip"),
+        PAYMENT_STATUS_FAILED: ("Failed", "❌", "chip expired"),
+        PAYMENT_STATUS_CANCELLED: ("Cancelled", "↩", "chip expired"),
+        PAYMENT_STATUS_REJECTED: ("Rejected", "🚫", "chip expired"),
+        PAYMENT_STATUS_EXPIRED: ("Expired", "⏰", "chip expired"),
     }
-    status_label, badge_class = status_display.get(normalized_status, (normalized_status.title(), "chip"))
+    status_label, status_icon, badge_class = status_display.get(
+        normalized_status,
+        (normalized_status.title(), "ℹ️", "chip"),
+    )
 
     return {
         "listing_id": payment_row["listing_id"],
@@ -590,6 +593,7 @@ def build_dashboard_payment_view(payment_row):
         "amount_label": format_xaf_amount(payment_row["amount"]),
         "status": normalized_status,
         "status_label": status_label,
+        "status_icon": status_icon,
         "badge_class": badge_class,
         "phone": payment_row["phone"] or "",
         "created_at": payment_row["created_at"],
@@ -630,6 +634,16 @@ def table_has_column(cursor, table_name, column_name):
 
 def current_timestamp_iso():
     return datetime.utcnow().isoformat(timespec="seconds")
+
+
+def ensure_user_verified_column(cursor):
+    if table_has_column(cursor, "users", "is_verified"):
+        return
+
+    if USE_POSTGRES:
+        cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified INTEGER DEFAULT 0")
+    else:
+        cursor.execute("ALTER TABLE users ADD COLUMN is_verified INTEGER DEFAULT 0")
 
 
 def payment_next_url(default_url):
@@ -778,14 +792,14 @@ def current_user_record():
     row = None
     if user_id is not None:
         cursor.execute(
-            "SELECT id, full_name, phone, email, google_sub, auth_provider, is_admin, is_active, created_at FROM users WHERE id = ?",
+            "SELECT * FROM users WHERE id = ?",
             (user_id,),
         )
         row = cursor.fetchone()
 
     if row is None and user_phone:
         cursor.execute(
-            "SELECT id, full_name, phone, email, google_sub, auth_provider, is_admin, is_active, created_at FROM users WHERE phone = ?",
+            "SELECT * FROM users WHERE phone = ?",
             (user_phone,),
         )
         row = cursor.fetchone()
@@ -807,6 +821,7 @@ def current_user_record():
         "auth_provider": row["auth_provider"] or "local",
         "is_admin": bool(row["is_admin"] == 1),
         "is_active": bool(row["is_active"] == 1),
+        "is_verified": bool(row_value(row, "is_verified", 0) == 1),
         "created_at": row["created_at"],
     }
 
@@ -1351,6 +1366,7 @@ def init_postgres_db():
         cursor.execute("UPDATE users SET auth_provider = 'local' WHERE auth_provider IS NULL OR auth_provider = ''")
         cursor.execute("UPDATE users SET is_admin = 0 WHERE is_admin IS NULL")
         cursor.execute("UPDATE users SET is_active = 1 WHERE is_active IS NULL")
+        cursor.execute("UPDATE users SET is_verified = 0 WHERE is_verified IS NULL")
 
         payment_columns = set()
         cursor.execute(
@@ -1471,6 +1487,7 @@ def init_db():
             google_sub TEXT,
             auth_provider TEXT NOT NULL DEFAULT 'local',
             is_admin INTEGER DEFAULT 0,
+            is_verified INTEGER DEFAULT 0,
             created_at TEXT NOT NULL
         )
         """
@@ -1489,10 +1506,13 @@ def init_db():
         cursor.execute("ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0")
     if "is_active" not in user_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1")
+    if "is_verified" not in user_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN is_verified INTEGER DEFAULT 0")
 
     cursor.execute("UPDATE users SET auth_provider = 'local' WHERE auth_provider IS NULL OR auth_provider = ''")
     cursor.execute("UPDATE users SET is_admin = 0 WHERE is_admin IS NULL")
     cursor.execute("UPDATE users SET is_active = 1 WHERE is_active IS NULL")
+    cursor.execute("UPDATE users SET is_verified = 0 WHERE is_verified IS NULL")
     cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique ON users(email)")
     cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub_unique ON users(google_sub)")
 
@@ -1734,6 +1754,19 @@ def home():
                 filtered.append(item)
         all_listings = filtered
 
+    seller_verified_by_phone = {}
+    owner_phones = sorted({item["owner_phone"] for item in all_listings if item["owner_phone"]})
+    if owner_phones and table_has_column(cursor, "users", "is_verified"):
+        placeholders = ",".join("?" for _ in owner_phones)
+        cursor.execute(
+            f"SELECT phone, is_verified FROM users WHERE phone IN ({placeholders})",
+            owner_phones,
+        )
+        seller_verified_by_phone = {
+            seller_row["phone"]: bool(row_value(seller_row, "is_verified", 0) == 1)
+            for seller_row in cursor.fetchall()
+        }
+
     today = current_date()
     featured_listings = []
     active_listings = []
@@ -1759,6 +1792,7 @@ def home():
             "days_left": days_left,
             "is_expired": is_expired,
             "last_updated_label": format_payment_date(updated_at) if updated_at else "",
+            "seller_is_verified": seller_verified_by_phone.get(owner_phone, False),
             "can_manage": bool(user_phone and user_phone == owner_phone),
         }
 
@@ -2366,9 +2400,11 @@ def listing_detail(id):
     cursor = conn.cursor()
     user_phone = get_session_phone()
     today_str = current_date_iso()
+    seller_verified_select = "u.is_verified" if table_has_column(cursor, "users", "is_verified") else "0"
 
-    listing_detail_query = """
+    listing_detail_query = f"""
         SELECT l.*, u.full_name AS seller_name, u.created_at AS seller_created_at,
+               {seller_verified_select} AS seller_is_verified,
                (
                    SELECT COUNT(*)
                    FROM listings active_listing
@@ -2443,6 +2479,7 @@ def listing_detail(id):
         "member_since_label": format_date_label(seller_created_at) if seller_created_at else "",
         "active_listing_count": row_value(item, "seller_active_listing_count", 0) or 0,
         "last_updated_label": format_payment_date(updated_at) if updated_at else "",
+        "is_verified": bool(row_value(item, "seller_is_verified", 0) == 1),
     }
     whatsapp_phone = normalize_phone(item["phone"])
     whatsapp_url = ""
@@ -3238,10 +3275,12 @@ def camerpay_webhook():
 def admin_panel():
     conn = get_db()
     cursor = conn.cursor()
+    ensure_user_verified_column(cursor)
+    conn.commit()
 
     cursor.execute(
         """
-        SELECT l.*, u.full_name as owner_name
+        SELECT l.*, u.full_name as owner_name, u.is_verified as owner_is_verified
         FROM listings l
         LEFT JOIN users u ON u.phone = l.owner_phone
         ORDER BY l.id DESC
@@ -3251,7 +3290,7 @@ def admin_panel():
 
     cursor.execute(
         """
-        SELECT u.id, u.full_name, u.phone, u.email, u.auth_provider, u.is_admin, u.is_active, u.created_at,
+        SELECT u.id, u.full_name, u.phone, u.email, u.auth_provider, u.is_admin, u.is_active, u.is_verified, u.created_at,
                (SELECT COUNT(*) FROM listings l WHERE l.owner_phone = u.phone) AS listing_count
         FROM users u
         ORDER BY u.is_active ASC, u.id DESC
@@ -3291,6 +3330,7 @@ def admin_panel():
                 "phone": row["phone"],
                 "owner_phone": row["owner_phone"] or "",
                 "owner_name": row["owner_name"] or "Unknown",
+                "owner_is_verified": bool(row_value(row, "owner_is_verified", 0) == 1),
                 "leave_date": row["leave_date"],
                 "description": row["description"] or "",
                 "image": row["image"],
@@ -3313,6 +3353,7 @@ def admin_panel():
                 "auth_provider": user_row["auth_provider"] or "local",
                 "is_admin": bool(user_row["is_admin"] == 1),
                 "is_active": bool(user_row["is_active"] == 1),
+                "is_verified": bool(row_value(user_row, "is_verified", 0) == 1),
                 "created_at": user_row["created_at"] or "",
                 "listing_count": user_row["listing_count"] or 0,
             }
@@ -3367,6 +3408,33 @@ def admin_toggle_user_active(user_id):
         flash("User activated successfully.", "success")
     else:
         flash("User deactivated successfully.", "success")
+    return redirect(url_for("admin_panel"))
+
+
+@app.route("/admin/users/<int:user_id>/toggle-verified", methods=["POST"])
+@admin_required
+def admin_toggle_user_verified(user_id):
+    conn = get_db()
+    cursor = conn.cursor()
+    ensure_user_verified_column(cursor)
+
+    cursor.execute("SELECT id, is_verified FROM users WHERE id = ?", (user_id,))
+    target_user = cursor.fetchone()
+
+    if target_user is None:
+        conn.close()
+        flash("User not found.", "error")
+        return redirect(url_for("admin_panel"))
+
+    new_status = 0 if row_value(target_user, "is_verified", 0) == 1 else 1
+    cursor.execute("UPDATE users SET is_verified = ? WHERE id = ?", (new_status, user_id))
+    conn.commit()
+    conn.close()
+
+    if new_status == 1:
+        flash("Seller marked as verified.", "success")
+    else:
+        flash("Seller verification removed.", "info")
     return redirect(url_for("admin_panel"))
 
 
