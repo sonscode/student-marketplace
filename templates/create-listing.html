@@ -262,7 +262,7 @@
                 </div>
             {% endif %}
 
-            <form method="POST" action="/add" enctype="multipart/form-data">
+            <form method="POST" action="/add" enctype="multipart/form-data" id="create-listing-form">
                 <div class="grid">
                     <div class="field">
                         <label for="title">Item Name</label>
@@ -301,6 +301,7 @@
                     <div class="field">
                         <label for="image">Listing Image</label>
                         <input id="image" type="file" name="image" accept="image/*" required>
+                        <p class="field-hint" id="image-size-hint" style="color: var(--danger); display: none;"></p>
                     </div>
 
                     <div class="field full">
@@ -311,11 +312,47 @@
                 </div>
 
                 <div class="actions">
-                    <button class="btn primary" type="submit">Post Listing</button>
+                    <button class="btn primary" type="submit" id="submit-btn">Post Listing</button>
                     <a class="btn ghost" href="{{ url_for('home') }}">Cancel</a>
                 </div>
             </form>
         </section>
     </main>
+
+    <script>
+        (function() {
+            var MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5MB — matches MAX_CONTENT_LENGTH
+            var imageInput = document.getElementById('image');
+            var hintEl = document.getElementById('image-size-hint');
+            var form = document.getElementById('create-listing-form');
+            var submitBtn = document.getElementById('submit-btn');
+
+            function validateFileSize() {
+                if (imageInput.files && imageInput.files.length > 0) {
+                    var file = imageInput.files[0];
+                    if (file.size > MAX_SIZE_BYTES) {
+                        var sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+                        var maxMB = (MAX_SIZE_BYTES / (1024 * 1024)).toFixed(0);
+                        hintEl.textContent = 'Image is ' + sizeMB + ' MB. Maximum allowed is ' + maxMB + ' MB. Please choose a smaller image.';
+                        hintEl.style.display = 'block';
+                        return false;
+                    }
+                }
+                hintEl.style.display = 'none';
+                return true;
+            }
+
+            imageInput.addEventListener('change', function() {
+                validateFileSize();
+            });
+
+            form.addEventListener('submit', function(e) {
+                if (!validateFileSize()) {
+                    e.preventDefault();
+                    imageInput.focus();
+                }
+            });
+        })();
+    </script>
 </body>
 </html>

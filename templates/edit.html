@@ -324,6 +324,7 @@
                 <div class="field">
                     <label for="image">Replace Image (optional)</label>
                     <input id="image" type="file" name="image" accept="image/*">
+                    <p class="field-hint" id="image-size-hint" style="color: var(--danger); display: none;"></p>
                 </div>
 
                 <div class="actions">
@@ -333,5 +334,38 @@
             </form>
         </section>
     </main>
+
+    <script>
+        (function() {
+            var MAX_SIZE_BYTES = 5 * 1024 * 1024;
+            var imageInput = document.getElementById('image');
+            var hintEl = document.getElementById('image-size-hint');
+            var form = document.querySelector('form');
+
+            function validateFileSize() {
+                if (imageInput.files && imageInput.files.length > 0) {
+                    var file = imageInput.files[0];
+                    if (file.size > MAX_SIZE_BYTES) {
+                        var sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+                        var maxMB = (MAX_SIZE_BYTES / (1024 * 1024)).toFixed(0);
+                        hintEl.textContent = 'Image is ' + sizeMB + ' MB. Maximum allowed is ' + maxMB + ' MB. Please choose a smaller image.';
+                        hintEl.style.display = 'block';
+                        return false;
+                    }
+                }
+                hintEl.style.display = 'none';
+                return true;
+            }
+
+            imageInput.addEventListener('change', validateFileSize);
+
+            form.addEventListener('submit', function(e) {
+                if (!validateFileSize()) {
+                    e.preventDefault();
+                    imageInput.focus();
+                }
+            });
+        })();
+    </script>
 </body>
 </html>

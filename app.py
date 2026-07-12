@@ -38,6 +38,7 @@ else:
 
 # Exceptions for image file
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
+MAX_UPLOAD_SIZE_MB = 5
 # resolve_internal_payment_status
 def allowed_file(filename):
 
@@ -102,6 +103,23 @@ if GOOGLE_OAUTH_ENABLED:
         redirect_to="google_authorized",
     )
     app.register_blueprint(google_bp, url_prefix="/login")
+
+@app.errorhandler(413)
+def request_entity_too_large(error):
+    """Handle oversized uploads gracefully.
+    
+    Flask raises RequestEntityTooLarge (413) when the request body exceeds
+    MAX_CONTENT_LENGTH. This handler catches it, flashes a friendly message,
+    and redirects back to the referrer (or home) so the form stays usable.
+    """
+    flash(
+        f"Image is too large. Maximum allowed is {MAX_UPLOAD_SIZE_MB} MB. "
+        "Please choose a smaller image and try again.",
+        "error",
+    )
+    referrer = request.headers.get("Referer") or url_for("home")
+    return redirect(referrer)
+
 
 @app.template_filter("highlight")
 def highlight(text, search):
@@ -3247,6 +3265,99 @@ def admin_delete_all_users():
 
     flash(
         f"Deleted {len(victim_ids)} user(s), {len(listing_ids)} listing(s) and their related data. Admin accounts were preserved.",
+        "success",
+    )
+    return redirect(url_for("admin_panel"))
+
+
+@app.route("/admin/users/bulk-delete", methods=["POST"])
+@admin_required
+def admin_bulk_delete_users():
+    """Delete selected non-admin users.
+    
+    Accepts a list of user_ids from the form, verifies none are admins and none
+    are the current admin, then deletes them along with their listings, payments,
+    and reports. Requires confirmation via the 'confirm' field.
+    """
+    if not _confirm_token_matches(request.form.get("confirm")):
+        flash("Bulk delete cancelled. Confirmation token missing.", "error")
+        return redirect(url_for("admin_panel"))
+
+    admin_user = current_user_record()
+    admin_id = admin_user.get("id") if admin_user else None
+
+    raw_ids = request.form.getlist("user_ids")
+    if not raw_ids:
+        flash("No users selected.", "error")
+        return redirect(url_for("admin_panel"))
+
+    selected_ids = []
+    for rid in raw_ids:
+        try:
+            selected_ids.append(int(rid))
+        except (TypeError, ValueError):
+            continue
+
+    if not selected_ids:
+        flash("No valid user IDs provided.", "error")
+        return redirect(url_for("admin_panel"))
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    # Filter out admins and the current admin
+    placeholders = ",".join("?" for _ in selected_ids)
+    cursor.execute(
+        f"SELECT id, phone, is_admin FROM users WHERE id IN ({placeholders})",
+        selected_ids,
+    )
+    target_rows = cursor.fetchall()
+
+    victim_ids = []
+    victim_phones = []
+    skipped = 0
+    for row in target_rows:
+        if row["is_admin"] == 1:
+            skipped += 1
+            continue
+        if admin_id is not None and row["id"] == admin_id:
+            skipped += 1
+            continue
+        victim_ids.append(row["id"])
+        if row["phone"]:
+            victim_phones.append(row["phone"])
+
+    if not victim_ids:
+        conn.close()
+        flash("No deletable users found. Admins and your own account are preserved.", "info")
+        return redirect(url_for("admin_panel"))
+
+    # Collect listing IDs owned by these users
+    listing_ids = []
+    if victim_phones:
+        phone_placeholders = ",".join("?" for _ in victim_phones)
+        cursor.execute(
+            f"SELECT id FROM listings WHERE owner_phone IN ({phone_placeholders})",
+            victim_phones,
+        )
+        listing_ids = [row["id"] for row in cursor.fetchall()]
+
+    # Delete dependent data
+    if listing_ids:
+        listing_ph = ",".join("?" for _ in listing_ids)
+        cursor.execute(f"DELETE FROM payments WHERE listing_id IN ({listing_ph})", listing_ids)
+        cursor.execute(f"DELETE FROM reports WHERE listing_id IN ({listing_ph})", listing_ids)
+        cursor.execute(f"DELETE FROM listings WHERE id IN ({listing_ph})", listing_ids)
+
+    victim_ph = ",".join("?" for _ in victim_ids)
+    cursor.execute(f"DELETE FROM reports WHERE reporter_user_id IN ({victim_ph})", victim_ids)
+    cursor.execute(f"DELETE FROM users WHERE id IN ({victim_ph})", victim_ids)
+    conn.commit()
+    conn.close()
+
+    flash(
+        f"Deleted {len(victim_ids)} user(s), {len(listing_ids)} listing(s) and their related data. "
+        f"{'Skipped ' + str(skipped) + ' admin account(s).' if skipped else ''}",
         "success",
     )
     return redirect(url_for("admin_panel"))

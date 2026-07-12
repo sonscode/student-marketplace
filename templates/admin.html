@@ -302,70 +302,80 @@
                         <button class="danger-btn" type="submit">Deactivate all</button>
                     </form>
                     <button type="button" class="danger-btn" onclick="confirmDeleteAllUsers();">Delete all</button>
+                    <button type="button" class="danger-btn" id="bulk-delete-users-btn" onclick="confirmBulkDeleteUsers();" disabled>Delete Selected</button>
                 {% endif %}
             </div>
         </section>
 
         <section class="table-container">
             {% if users %}
-                <table>
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Name</th>
-                            <th>Phone</th>
-                            <th>Email</th>
-                            <th>Provider</th>
-                            <th>Listings</th>
-                            <th>Role</th>
-                            <th>Status</th>
-                            <th>Created</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for u in users %}
-                        <tr>
-                            <td>{{ u['id'] }}</td>
-                            <td>{{ u['full_name'] }}</td>
-                            <td>{{ u['phone'] }}</td>
-                            <td>{{ u['email'] or '—' }}</td>
-                            <td>{{ u['auth_provider'] }}</td>
-                            <td>{{ u['listing_count'] }}</td>
-                            <td>
-                                {% if u['is_admin'] %}
-                                    <span class="badge admin">Admin</span>
-                                {% else %}
-                                    <span class="muted-text">User</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if u['is_active'] %}
-                                    <span class="badge active">Active</span>
-                                {% else %}
-                                    <span class="badge deactivated">Deactivated</span>
-                                {% endif %}
-                            </td>
-                            <td class="muted-text">{{ u['created_at'] }}</td>
-                            <td>
-                                {% if current_user and current_user.get('id') == u['id'] %}
-                                    <span class="muted-text">—</span>
-                                {% else %}
-                                    {% if u['is_active'] %}
-                                        <form method="POST" action="{{ url_for('admin_toggle_user_active', user_id=u['id']) }}" onsubmit="return confirm('Deactivate this user?');">
-                                            <button class="danger-btn" type="submit">Deactivate</button>
-                                        </form>
-                                    {% else %}
-                                        <form method="POST" action="{{ url_for('admin_toggle_user_active', user_id=u['id']) }}" onsubmit="return confirm('Activate this user?');">
-                                            <button class="success-btn" type="submit">Activate</button>
-                                        </form>
+                <form id="bulk-delete-users-form" method="POST" action="{{ url_for('admin_bulk_delete_users') }}">
+                    <input type="hidden" name="confirm" value="yes">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th><input type="checkbox" id="select-all-users" onchange="toggleAllUserCheckboxes(this);"></th>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>Phone</th>
+                                <th>Email</th>
+                                <th>Provider</th>
+                                <th>Listings</th>
+                                <th>Role</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for u in users %}
+                            <tr>
+                                <td>
+                                    {% if not u['is_admin'] and not (current_user and current_user.get('id') == u['id']) %}
+                                        <input type="checkbox" name="user_ids" value="{{ u['id'] }}" class="user-checkbox" onchange="updateBulkDeleteButton();">
                                     {% endif %}
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                                </td>
+                                <td>{{ u['id'] }}</td>
+                                <td>{{ u['full_name'] }}</td>
+                                <td>{{ u['phone'] }}</td>
+                                <td>{{ u['email'] or '—' }}</td>
+                                <td>{{ u['auth_provider'] }}</td>
+                                <td>{{ u['listing_count'] }}</td>
+                                <td>
+                                    {% if u['is_admin'] %}
+                                        <span class="badge admin">Admin</span>
+                                    {% else %}
+                                        <span class="muted-text">User</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if u['is_active'] %}
+                                        <span class="badge active">Active</span>
+                                    {% else %}
+                                        <span class="badge deactivated">Deactivated</span>
+                                    {% endif %}
+                                </td>
+                                <td class="muted-text">{{ u['created_at'] }}</td>
+                                <td>
+                                    {% if current_user and current_user.get('id') == u['id'] %}
+                                        <span class="muted-text">—</span>
+                                    {% else %}
+                                        {% if u['is_active'] %}
+                                            <form method="POST" action="{{ url_for('admin_toggle_user_active', user_id=u['id']) }}" onsubmit="return confirm('Deactivate this user?');">
+                                                <button class="danger-btn" type="submit">Deactivate</button>
+                                            </form>
+                                        {% else %}
+                                            <form method="POST" action="{{ url_for('admin_toggle_user_active', user_id=u['id']) }}" onsubmit="return confirm('Activate this user?');">
+                                                <button class="success-btn" type="submit">Activate</button>
+                                            </form>
+                                        {% endif %}
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </form>
             {% else %}
                 <div class="empty">
                     <p>No users found.</p>
@@ -630,6 +640,54 @@
                 title: "Delete ALL listings?",
                 message: "This will permanently remove every listing, its image file, related payment records and reports. This action cannot be undone."
             });
+        }
+
+        function toggleAllUserCheckboxes(source) {
+            var checkboxes = document.getElementsByClassName('user-checkbox');
+            for (var i = 0; i < checkboxes.length; i++) {
+                checkboxes[i].checked = source.checked;
+            }
+            updateBulkDeleteButton();
+        }
+
+        function updateBulkDeleteButton() {
+            var checked = document.querySelectorAll('.user-checkbox:checked');
+            var btn = document.getElementById('bulk-delete-users-btn');
+            btn.disabled = checked.length === 0;
+            if (checked.length > 0) {
+                btn.textContent = 'Delete Selected (' + checked.length + ')';
+            } else {
+                btn.textContent = 'Delete Selected';
+            }
+        }
+
+        function confirmBulkDeleteUsers() {
+            var checked = document.querySelectorAll('.user-checkbox:checked');
+            if (checked.length === 0) {
+                return;
+            }
+            var names = [];
+            for (var i = 0; i < checked.length; i++) {
+                var row = checked[i].closest('tr');
+                if (row) {
+                    var nameCell = row.cells[2];
+                    if (nameCell) {
+                        names.push(nameCell.textContent.trim());
+                    }
+                }
+            }
+            var message = 'Delete ' + checked.length + ' selected user(s)?\n\n';
+            if (names.length > 0) {
+                message += names.slice(0, 10).join('\n');
+                if (names.length > 10) {
+                    message += '\n...and ' + (names.length - 10) + ' more';
+                }
+                message += '\n\n';
+            }
+            message += 'This will permanently remove their accounts, listings, payments and reports. This cannot be undone. Admins and your own account are preserved.';
+            if (window.confirm(message)) {
+                document.getElementById('bulk-delete-users-form').submit();
+            }
         }
     </script>
 </body>
