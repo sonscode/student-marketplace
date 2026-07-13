@@ -417,7 +417,7 @@ def test_dashboard_displays_featured_and_payment_status_icons(client, ux_user):
 
     assert response.status_code == 200
     assert '🔥 Featured' in html
-    assert 'class="chip featured"' in html
+    assert 'class="badge featured"' in html
     for icon, label in (
         ("✅", "Completed"),
         ("⏳", "Pending"),

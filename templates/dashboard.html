@@ -1,608 +1,149 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Azison | My Dashboard</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&family=Sora:wght@700;800&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --bg: #f7f4ec;
-            --card: #dce8f5;
-            --text: #1b1d20;
-            --muted: #60656f;
-            --line: #d0d6e2;
-            --brand: #d0562d;
-            --soft: #eef2f8;
-            --ok: #1d6f3a;
-            --warn: #a25f12;
-            --danger: #a31f23;
-        }
-
-        * {
-            box-sizing: border-box;
-        }
-
-        body {
-            margin: 0;
-            font-family: "Manrope", "Segoe UI", sans-serif;
-            color: var(--text);
-            background:
-                radial-gradient(circle at 10% 0%, #fff2d7 0, transparent 28%),
-                radial-gradient(circle at 90% 10%, #ffe7dd 0, transparent 24%),
-                var(--bg);
-            min-height: 100vh;
-        }
-
-        .page {
-            width: min(980px, 92vw);
-            margin: 34px auto 50px;
-            display: grid;
-            gap: 14px;
-        }
-
-        .topbar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-
-        .brand {
-            font-family: "Sora", "Manrope", sans-serif;
-            font-weight: 800;
-            letter-spacing: -0.03em;
-        }
-
-        .site-title {
-            font-family: "Poppins", "Manrope", sans-serif;
-            font-weight: 500;
-            letter-spacing: 0.02em;
-            color: var(--muted);
-        }
-
-        .title-wrap h1 {
-            margin: 0;
-            font-size: clamp(1.4rem, 2.3vw, 2rem);
-        }
-
-        .title-wrap p {
-            margin: 4px 0 0;
-            color: var(--muted);
-            font-size: 0.92rem;
-        }
-
-        .actions {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            border: 1px solid var(--line);
-            border-radius: 12px;
-            padding: 9px 13px;
-            text-decoration: none;
-            color: var(--text);
-            background: #fff;
-            font-weight: 700;
-        }
-
-        .btn.primary {
-            border-color: transparent;
-            color: #fff;
-            background: linear-gradient(135deg, #ea6f45, var(--brand));
-        }
-
-        .stats {
-            display: grid;
-            grid-template-columns: repeat(5, minmax(0, 1fr));
-            gap: 10px;
-        }
-
-        .stat {
-            border: 1px solid var(--line);
-            border-radius: 14px;
-            background: var(--card);
-            padding: 12px;
-        }
-
-        .stat .label {
-            display: block;
-            font-size: 0.78rem;
-            font-weight: 700;
-            color: var(--muted);
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-            margin-bottom: 6px;
-        }
-
-        .stat .value {
-            font-size: 1.25rem;
-            font-weight: 800;
-            letter-spacing: -0.01em;
-        }
-
-        .list {
-            display: grid;
-            gap: 10px;
-        }
-
-        .card {
-            border: 1px solid var(--line);
-            border-radius: 14px;
-            background: var(--card);
-            padding: 10px;
-            display: grid;
-            grid-template-columns: 1fr auto;
-            gap: 10px;
-            overflow: hidden;
-        }
-
-        .card h2 {
-            margin: 0 0 6px;
-            font-size: 1.04rem;
-            letter-spacing: -0.01em;
-        }
-
-        .meta {
-            margin: 0;
-            color: var(--muted);
-            font-size: 0.9rem;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            align-items: center;
-        }
-
-        .summary {
-            margin: 8px 0 0;
-            color: #2c3037;
-            font-size: 0.93rem;
-            line-height: 1.45;
-        }
-
-        .chips {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 10px;
-        }
-
-        .chip {
-            border-radius: 999px;
-            padding: 5px 9px;
-            font-size: 0.76rem;
-            font-weight: 800;
-            background: #f1ecdf;
-            color: #3b3e44;
-        }
-
-        .chip.featured {
-            background: #ffe5e1;
-            color: #811e15;
-        }
-
-        .chip.expired {
-            background: #e2e2e2;
-            color: rgb(71, 71, 71);
-        }
-
-        .featured-icon,
-        .payment-status-icon {
-            display: inline-block;
-            line-height: 1;
-        }
-
-        .payment-status-icon {
-            margin-right: 0.2em;
-        }
-
-        .thumb-link {
-            display: block;
-            width: 56px;
-            max-width: 100%;
-            border-radius: 6px;
-        }
-
-        .thumb {
-            width: 56px;
-            height: 56px;
-            border-radius: 6px;
-            object-fit: cover;
-            border: 1px solid var(--line);
-            background: #f3f0e9;
-        }
-
-        .row-actions {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 12px;
-        }
-
-        .row-actions form {
-            margin: 0;
-        }
-
-        .link-btn,
-        .danger-btn {
-            border: 1px solid var(--line);
-            border-radius: 8px;
-            padding: 5px 8px;
-            text-decoration: none;
-            color: var(--text);
-            background: #fff;
-            font-size: 0.78rem;
-            font-weight: 700;
-            font-family: inherit;
-            cursor: pointer;
-        }
-
-        .danger-btn {
-            color: var(--danger);
-            border-color: #f2c8c9;
-            background: #fff8f8;
-        }
-
-        .flash-stack {
-            display: grid;
-            gap: 8px;
-        }
-
-        .flash {
-            border: 1px solid var(--line);
-            border-radius: 12px;
-            padding: 10px 12px;
-            font-size: 0.9rem;
-            background: #fff;
-        }
-
-        .flash.success {
-            border-color: #bbdfc4;
-            background: #edf9f1;
-            color: #1b5a32;
-        }
-
-        .flash.error {
-            border-color: #f0b8b8;
-            background: #fff2f2;
-            color: #772323;
-        }
-
-        .flash.info {
-            border-color: #e8dbaf;
-            background: #fff9ea;
-            color: #6f4e15;
-        }
-
-        .history {
-            border: 1px solid var(--line);
-            border-radius: 14px;
-            background: #fff;
-            padding: 14px;
-            display: grid;
-            gap: 10px;
-        }
-
-        .history h2 {
-            margin: 0;
-            font-size: 1rem;
-            letter-spacing: -0.01em;
-        }
-
-        .history ul {
-            margin: 0;
-            padding-left: 18px;
-            display: grid;
-            gap: 6px;
-            color: #2f3641;
-            font-size: 0.88rem;
-        }
-
-        .empty {
-            border: 1px dashed var(--line);
-            border-radius: 14px;
-            background: #fff;
-            color: var(--muted);
-            text-align: center;
-            padding: 22px;
-        }
-
-        .empty p {
-            margin: 0 0 12px;
-        }
-
-        .lightbox-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(12, 14, 18, 0.86);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            padding: 18px;
-            z-index: 9999;
-        }
-
-        .lightbox-overlay.open {
-            display: flex;
-        }
-
-        .lightbox-content {
-            position: relative;
-            width: min(96vw, 1080px);
-            max-height: 90vh;
-            display: grid;
-            gap: 8px;
-            justify-items: center;
-        }
-
-        .lightbox-image {
-            max-width: 100%;
-            max-height: 84vh;
-            width: auto;
-            height: auto;
-            object-fit: contain;
-            border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.24);
-            background: #111;
-        }
-
-        .lightbox-close {
-            position: absolute;
-            top: -12px;
-            right: -12px;
-            border: 0;
-            border-radius: 999px;
-            width: 36px;
-            height: 36px;
-            background: #fff;
-            color: #1b1d20;
-            font-size: 1.25rem;
-            font-weight: 800;
-            cursor: pointer;
-            line-height: 1;
-        }
-
-        @media (max-width: 860px) {
-            .stats {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-            }
-        }
-
-        @media (max-width: 700px) {
-            .page {
-                margin: 18px auto 28px;
-                gap: 10px;
-            }
-
-            .card {
-                grid-template-columns: 1fr auto;
-                padding: 10px;
-                gap: 8px;
-            }
-
-            .card h2 {
-                font-size: 0.95rem;
-            }
-
-            .meta {
-                font-size: 0.84rem;
-                gap: 5px;
-            }
-
-            .summary {
-                font-size: 0.88rem;
-                margin-top: 6px;
-                display: -webkit-box;
-                -webkit-line-clamp: 2;
-                /* Standard property for compatibility */
-                line-clamp: 2;
-                -webkit-box-orient: vertical;
-                overflow: hidden;
-            }
-
-            .chips {
-                gap: 5px;
-                margin-top: 6px;
-            }
-
-            .chip {
-                font-size: 0.72rem;
-                padding: 3px 7px;
-            }
-
-            .row-actions {
-                gap: 6px;
-                margin-top: 8px;
-            }
-
-            .link-btn,
-            .danger-btn {
-                font-size: 0.75rem;
-                padding: 4px 7px;
-            }
-
-            .thumb-link,
-            .thumb {
-                width: 56px;
-                height: 56px;
-            }
-
-            .history {
-                padding: 10px;
-                gap: 8px;
-            }
-
-            .history h2 {
-                font-size: 0.92rem;
-            }
-
-            .stat {
-                padding: 8px;
-            }
-
-            .stat .label {
-                font-size: 0.7rem;
-            }
-
-            .stat .value {
-                font-size: 1rem;
-            }
-
-            .stats {
-                gap: 7px;
-            }
-        }
-    </style>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/marketplace.css') }}">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Azison | My Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&family=Sora:wght@700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f7f4ec;--card:#dce8f5;--text:#1b1d20;--muted:#60656f;--line:#d0d6e2;--brand:#d0562d;--soft:#eef2f8;--ok:#1d6f3a;--warn:#a25f12;--danger:#a31f23}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Manrope","Segoe UI",sans-serif;color:var(--text);background:radial-gradient(circle at 10% 0%,#fff2d7 0,transparent 28%),radial-gradient(circle at 90% 10%,#ffe7dd 0,transparent 24%),var(--bg);min-height:100vh}
+.page{width:min(980px,92vw);margin:34px auto 50px;display:grid;gap:14px}
+.stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.stat{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:12px}
+.stat .label{display:block;font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
+.stat .value{font-size:1.25rem;font-weight:800;letter-spacing:-.01em}
+.list{display:grid;gap:8px}
+.card h2{margin:0 0 2px;font-size:.98rem;line-height:1.2;letter-spacing:-.01em}
+.badges{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;align-items:center}
+.meta{margin:0;font-size:.9rem;color:var(--muted);display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.summary{margin:4px 0 0;color:#2c3037;font-size:.92rem;line-height:1.45}
+.chip{border-radius:999px;padding:3px 8px;font-size:.76rem;font-weight:800;background:#f1ecdf;color:#3b3e44;display:inline-block}
+.chip.featured{background:#ffe5e1;color:#811e15}
+.chip.expired{background:#e2e2e2;color:#474747}
+.payment-status-icon{margin-right:.2em;display:inline-block;line-height:1}
+.thumb-link{display:block;border-radius:6px}
+.thumb{border-radius:6px;object-fit:cover}
+.menu-wrap{position:relative;display:inline-block}
+.menu-toggle{border:1px solid var(--line);background:#fff;color:var(--text);border-radius:7px;padding:2px 8px;font-size:1rem;font-weight:800;line-height:1.4;cursor:pointer;font-family:inherit}
+.menu-list{position:absolute;right:0;top:calc(100% + 4px);z-index:999;display:none;flex-direction:column;gap:4px;min-width:150px;padding:6px;border:1px solid var(--line);border-radius:10px;background:#fff;box-shadow:0 12px 28px rgba(15,23,42,.14)}
+.menu-list.open{display:flex}
+.menu-list .link-btn,.menu-list .danger-btn{display:block;width:100%;text-align:left;border-radius:7px;padding:6px 8px;font-size:.8rem}
+.link-btn,.danger-btn{border:1px solid var(--line);background:#fff;color:var(--text);border-radius:7px;padding:2px 6px;text-decoration:none;font-size:.72rem;font-weight:700;line-height:1.4;font-family:inherit;cursor:pointer}
+.danger-btn{color:var(--danger);border-color:#f2c8c9;background:#fff8f8}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line);border-radius:12px;padding:9px 13px;text-decoration:none;color:var(--text);background:#fff;font-weight:700}
+.btn.primary{border-color:transparent;color:#fff;background:linear-gradient(135deg,#ea6f45,var(--brand))}
+.flash{border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:.9rem;background:#fff;margin:0}
+.flash.success{border-color:#bbdfc4;background:#edf9f1;color:#1b5a32}
+.flash.error{border-color:#f0b8b8;background:#fff2f2;color:#772323}
+.flash.info{border-color:#e8dbaf;background:#fff9ea;color:#6f4e15}
+.empty{border:1px dashed var(--line);border-radius:14px;background:#fff;color:var(--muted);text-align:center;padding:22px}
+.empty p{margin:0 0 12px}
+.history{border:1px solid var(--line);border-radius:14px;background:#fff;padding:14px;display:grid;gap:10px}
+.history h2{margin:0;font-size:1rem;letter-spacing:-.01em}
+.lightbox-overlay{position:fixed;inset:0;background:rgba(12,14,18,.86);display:none;align-items:center;justify-content:center;padding:18px;z-index:9999}
+.lightbox-overlay.open{display:flex}
+.lightbox-content{position:relative;width:min(96vw,1080px);max-height:90vh;display:grid;gap:8px;justify-items:center}
+.lightbox-image{max-width:100%;max-height:84vh;width:auto;height:auto;object-fit:contain;border-radius:12px;border:1px solid rgba(255,255,255,.24);background:#111}
+.lightbox-close{position:absolute;top:-12px;right:-12px;border:0;border-radius:999px;width:36px;height:36px;background:#fff;color:#1b1d20;font-size:1.25rem;font-weight:800;cursor:pointer;line-height:1}
+@media(max-width:860px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){
+.page{margin:18px auto 28px;gap:10px}
+.card h2{font-size:.95rem}
+.meta{font-size:.84rem;gap:4px}
+.summary{font-size:.86rem;margin-top:3px;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.chip{font-size:.7rem;padding:2px 6px}
+.link-btn,.danger-btn{font-size:.72rem;padding:2px 5px}
+}
+</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/marketplace.css') }}">
 </head>
 <body>
-    {% include "_navigation.html" %}
-    <main class="page">
+{% include "_navigation.html" %}
+<main class="page">
+{% include "_flash_messages.html" %}
+<section class="stats">
+<article class="stat"><span class="label">Total</span><strong class="value">{{ stats['total'] }}</strong></article>
+<article class="stat"><span class="label">Active</span><strong class="value">{{ stats['active'] }}</strong></article>
+<article class="stat"><span class="label">Due Soon</span><strong class="value">{{ stats['soon'] }}</strong></article>
+<article class="stat"><span class="label">Featured</span><strong class="value">{{ stats['featured'] }}</strong></article>
+<article class="stat"><span class="label">Expired</span><strong class="value">{{ stats['expired'] }}</strong></article>
+</section>
 
-        {% include "_flash_messages.html" %}
+<section class="list">
+{% if listings %}
+{% for item in listings %}
+<article class="card">
+<div class="card-body">
+<h2 style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;">{{ item['title'] }}{% if item['is_featured'] == 1 %}<span class="badge featured" style="font-size:.7rem;padding:2px 7px;">🔥 Featured</span>{% endif %}</h2>
+<p class="meta">
+<span><strong>{{ item['price'] }}</strong></span>
+<span>•</span>
+<span>{{ item['category'] }}</span>
+<span>•</span>
+{% if item['is_expired'] %}<span class="deadline expired">Expired {{ item['days_left'] * -1 }} day(s) ago</span>{% elif item['is_soon'] %}<span class="deadline soon">⚡ {{ item['days_left'] }} day(s) left</span>{% else %}<span class="deadline">{{ item['days_left'] }} day(s) left</span>{% endif %}
+</p>
+{% if item['description']|length > 160 %}<p class="summary">{{ item['description'][:160] ~ '...' }}</p>{% else %}<p class="summary">{{ item['description'] }}</p>{% endif %}
+{% if (current_user and current_user.get('is_verified')) or item['is_expired'] %}
+<div class="badges">
+{% if current_user and current_user.get('is_verified') %}<span class="badge verified">Verified Seller</span>{% endif %}
+{% if item['is_expired'] %}<span class="badge expired">Expired</span>{% endif %}
+</div>
+{% endif %}
+<div class="card-footer">
+<div class="menu-wrap">
+<button class="menu-toggle" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Actions">⋯</button>
+<div class="menu-list" role="menu">
+<a class="link-btn" role="menuitem" href="{{ url_for('listing_detail', id=item['id']) }}">View</a>
+<a class="link-btn" role="menuitem" href="{{ url_for('edit_listing', id=item['id']) }}">Edit</a>
+{% if item['is_expired'] %}<a class="link-btn" role="menuitem" href="{{ url_for('edit_listing', id=item['id'], renew=1) }}">Renew / Extend Date</a>{% elif item['is_featured'] == 1 %}<span class="link-btn" role="menuitem">Featured Active</span>{% else %}<a class="link-btn" role="menuitem" href="{{ url_for('select_boost_payment', listing_id=item['id'], next=url_for('dashboard')) }}">Boost ({{ boost_amount }} XAF)</a>{% endif %}
+{% if item['pending_payment_reference'] %}<a class="link-btn" role="menuitem" href="{{ url_for('verify_listing_payment', reference_id=item['pending_payment_reference'], next=url_for('dashboard')) }}">Check Payment</a>
+<form method="POST" action="{{ url_for('recover_listing_payment', reference_id=item['pending_payment_reference']) }}" style="display:inline;"><button class="link-btn" type="submit" role="menuitem" onclick="return confirm('Continue?');">Recover Payment</button></form>{% endif %}
+<form method="POST" action="{{ url_for('delete_listing', id=item['id']) }}" onsubmit="return confirm('Are you sure?');"><button class="danger-btn" type="submit" role="menuitem">Delete</button></form>
+</div>
+</div>
+<span class="badge views-badge">👁 {{ item['view_count'] or 0 }} views</span>
+</div>
+</div>
+{% if item['image'] %}<a class="thumb-link lightbox-trigger" href="{{ listing_image_url(item['image']) }}" title="Open full image"><img class="thumb" src="{{ listing_image_url(item['image']) }}" alt="{{ item['title'] }}"></a>{% endif %}
+</article>
+{% endfor %}
+{% else %}
+<div class="empty"><p>No listings yet on your dashboard.</p><a class="btn primary" href="{{ url_for('create') }}">Post your first listing</a></div>
+{% endif %}
+</section>
 
-        <section class="stats">
-            <article class="stat">
-                <span class="label">Total</span>
-                <strong class="value">{{ stats['total'] }}</strong>
-            </article>
-            <article class="stat">
-                <span class="label">Active</span>
-                <strong class="value">{{ stats['active'] }}</strong>
-            </article>
-            <article class="stat">
-                <span class="label">Due Soon</span>
-                <strong class="value">{{ stats['soon'] }}</strong>
-            </article>
-            <article class="stat">
-                <span class="label">Featured</span>
-                <strong class="value">{{ stats['featured'] }}</strong>
-            </article>
-            <article class="stat">
-                <span class="label">Expired</span>
-                <strong class="value">{{ stats['expired'] }}</strong>
-            </article>
-        </section>
-
-        <section class="list">
-            {% if listings %}
-                {% for item in listings %}
-                    <article class="card">
-                        <div>
-                            <h2 style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;">
-                                {{ item['title'] }}
-                                {% if item['is_featured'] == 1 %}
-                                    <span class="chip featured" style="font-size:0.7rem;padding:2px 7px;">🔥 Featured</span>
-                                {% endif %}
-                            </h2>
-                            <p class="meta">
-                                <span><strong>{{ item['price'] }}</strong></span>
-                                <span>•</span>
-                                <span>{{ item['category'] }}</span>
-                                <span>•</span>
-                                <span>{{ item['phone'] }}</span>
-                                <span>•</span>
-                                {% if item['is_expired'] %}
-                                    <span>Expired {{ item['days_left'] * -1 }} day(s) ago</span>
-                                {% elif item['is_soon'] %}
-                                    <span class="deadline soon">⚡ {{ item['days_left'] }} day(s) left</span>
-                                {% else %}
-                                    <span class="deadline">{{ item['days_left'] }} day(s) left</span>
-                                {% endif %}
-                            </p>
-
-                            {% if item['description']|length > 160 %}
-                                <p class="summary">{{ item['description'][:160] ~ '...' }}</p>
-                            {% else %}
-                                <p class="summary">{{ item['description'] }}</p>
-                            {% endif %}
-
-                            <div class="chips">
-                                {% if current_user and current_user.get('is_verified') %}
-                                    <span class="chip verified">Verified Seller</span>
-                                {% endif %}
-                                {% if item['is_expired'] %}
-                                    <span class="chip expired">Expired</span>
-                                {% endif %}
-                                <span class="chip">👁 {{ item['view_count'] or 0 }} views</span>
-                            </div>
-
-                            <div class="row-actions">
-                                <a class="link-btn" href="{{ url_for('listing_detail', id=item['id']) }}">View</a>
-                                <a class="link-btn" href="{{ url_for('edit_listing', id=item['id']) }}">Edit</a>
-                                {% if item['is_expired'] %}
-                                    <a class="link-btn" href="{{ url_for('edit_listing', id=item['id'], renew=1) }}">Renew / Extend Date</a>
-                                {% elif item['is_featured'] == 1 %}
-                                    <span class="link-btn">Featured Active</span>
-                                {% else %}
-                                    <a class="link-btn" href="{{ url_for('select_boost_payment', listing_id=item['id'], next=url_for('dashboard')) }}">Boost ({{ boost_amount }} XAF)</a>
-                                {% endif %}
-                                {% if item['pending_payment_reference'] %}
-                                    <a class="link-btn" href="{{ url_for('verify_listing_payment', reference_id=item['pending_payment_reference'], next=url_for('dashboard')) }}">Check Payment</a>
-                                    <form method="POST" action="{{ url_for('recover_listing_payment', reference_id=item['pending_payment_reference']) }}" style="display:inline;">
-                                        <button class="link-btn" type="submit" onclick="return confirm('This will check your payment status with CamerPay. If the payment is already completed, your listing will be featured. Continue?');">Recover Payment</button>
-                                    </form>
-                                {% endif %}
-                                <form method="POST" action="{{ url_for('delete_listing', id=item['id']) }}" onsubmit="return confirm('Are you sure you want to delete this listing?');">
-                                    <button class="danger-btn" type="submit">Delete</button>
-                                </form>
-                            </div>
-                        </div>
-
-                        {% if item['image'] %}
-                            <a class="thumb-link lightbox-trigger" href="{{ listing_image_url(item['image']) }}" title="Open full image">
-                                <img class="thumb" src="{{ listing_image_url(item['image']) }}" alt="{{ item['title'] }}">
-                            </a>
-                        {% endif %}
-                    </article>
-                {% endfor %}
-            {% else %}
-                <div class="empty">
-                    <p>No listings yet on your dashboard.</p>
-                    <a class="btn primary" href="{{ url_for('create') }}">Post your first listing</a>
-                </div>
-            {% endif %}
-        </section>
-
-        <section class="history">
-            <h2>Recent Payments</h2>
-            {% if payment_history %}
-                <div style="display:grid;gap:8px;">
-                    {% for payment in payment_history %}
-                        <div style="border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:#fcfbf8;">
-                            <span style="font-weight:700;flex:1;min-width:120px;">
-                                <a href="{{ url_for('listing_detail', id=payment['listing_id']) }}" style="color:var(--text);text-decoration:none;">{{ payment['listing_title'] }}</a>
-                            </span>
-                            <span><strong>{{ payment['amount_label'] }}</strong></span>
-                            <span class="{{ payment['badge_class'] }}"><span class="payment-status-icon" aria-hidden="true">{{ payment['status_icon'] }}</span>{{ payment['status_label'] }}</span>
-                            <span style="color:var(--muted);font-size:0.82rem;">{{ payment['created_label'] }}</span>
-                            {% if payment['can_check'] %}
-                                <a class="link-btn" href="{{ url_for('verify_listing_payment', reference_id=payment['reference_id'], next=url_for('dashboard')) }}">Check</a>
-                            {% endif %}
-                        </div>
-                    {% endfor %}
-                </div>
-            {% else %}
-                <p class="summary">No payment activity yet.</p>
-            {% endif %}
-        </section>
-    </main>
-    <div id="image-lightbox" class="lightbox-overlay" aria-hidden="true">
-        <div class="lightbox-content" role="dialog" aria-modal="true" aria-label="Image preview">
-            <button id="lightbox-close" class="lightbox-close" type="button" aria-label="Close image preview">×</button>
-            <img id="lightbox-image" class="lightbox-image" src="" alt="">
-        </div>
-    </div>
-    <script src="{{ url_for('static', filename='js/lightbox.js') }}"></script>
+<section class="history">
+<h2>Recent Payments</h2>
+{% if payment_history %}
+<div style="display:grid;gap:8px;">
+{% for payment in payment_history %}
+<div style="border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:#fcfbf8;">
+<span style="font-weight:700;flex:1;min-width:120px;"><a href="{{ url_for('listing_detail', id=payment['listing_id']) }}" style="color:var(--text);text-decoration:none;">{{ payment['listing_title'] }}</a></span>
+<span><strong>{{ payment['amount_label'] }}</strong></span>
+<span class="{{ payment['badge_class'] }}"><span class="payment-status-icon" aria-hidden="true">{{ payment['status_icon'] }}</span>{{ payment['status_label'] }}</span>
+<span style="color:var(--muted);font-size:.82rem;">{{ payment['created_label'] }}</span>
+{% if payment['can_check'] %}<a class="link-btn" href="{{ url_for('verify_listing_payment', reference_id=payment['reference_id'], next=url_for('dashboard')) }}">Check</a>{% endif %}
+</div>
+{% endfor %}
+</div>
+{% else %}
+<p class="summary">No payment activity yet.</p>
+{% endif %}
+</section>
+</main>
+<div id="image-lightbox" class="lightbox-overlay" aria-hidden="true"><div class="lightbox-content"><button id="lightbox-close" class="lightbox-close" type="button">×</button><img id="lightbox-image" class="lightbox-image" src="" alt=""></div></div>
+<script src="{{ url_for('static', filename='js/lightbox.js') }}"></script>
+<script>
+document.addEventListener("DOMContentLoaded",function(){
+document.querySelectorAll(".menu-toggle").forEach(function(t){
+var m=t.parentElement.querySelector(".menu-list"),c=t.closest(".card");
+t.addEventListener("click",function(e){e.stopPropagation();var o=m.classList.toggle("open");t.setAttribute("aria-expanded",o?"true":"false");if(c)c.style.zIndex=o?"100":""})});
+document.addEventListener("click",function(e){if(!e.target.closest(".menu-wrap")){document.querySelectorAll(".menu-list.open").forEach(function(m){m.classList.remove("open");var t=m.parentElement.querySelector(".menu-toggle");if(t)t.setAttribute("aria-expanded","false");var c=m.closest(".card");if(c)c.style.zIndex=""})}})});
+</script>
 </body>
 </html>
