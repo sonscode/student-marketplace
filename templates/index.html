@@ -41,6 +41,7 @@
         .page {
             width: min(980px, 92vw);
             margin: 34px auto 46px;
+            overflow-x: hidden;
         }
 
         .header {
@@ -112,6 +113,7 @@
             display: grid;
             gap: 10px;
             margin-bottom: 18px;
+            overflow-x: hidden;
         }
 
         .top-controls {
@@ -121,8 +123,9 @@
         }
 
         .top-controls .search {
-            flex: 1;
+            flex: 1 1 0;
             min-width: 0;
+            max-width: 100%;
         }
 
         .top-controls .filter-panel {
@@ -132,32 +135,39 @@
         .search {
             display: grid;
             grid-template-columns: 1fr auto;
-            gap: 5px;
+            gap: 4px;
             background: var(--card);
             border: 1px solid var(--line);
-            border-radius: 12px;
-            padding: 5px;
+            border-radius: 10px;
+            padding: 3px;
             align-items: center;
+            width: 100%;
+            min-width: 0;
+            max-width: 100%;
         }
 
         .search input {
             border: 0;
             outline: none;
             font-size: 0.85rem;
-            padding: 6px 7px;
+            padding: 3px 6px;
             background: transparent;
             color: var(--text);
             font-family: inherit;
-            min-height: 32px;
+            min-height: 28px;
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+            box-sizing: border-box;
         }
 
         .search button,
         .search .clear-btn {
             border: 0;
-            width: 32px;
-            height: 32px;
+            width: 28px;
+            height: 28px;
             padding: 0;
-            border-radius: 8px;
+            border-radius: 7px;
             cursor: pointer;
             font-family: inherit;
             display: inline-flex;
@@ -562,12 +572,12 @@
             border-radius: 14px;
             padding: 10px;
             position: absolute;
-            left: 0;
+            right: 0;
             top: calc(100% + 6px);
             z-index: 30;
-            width: max-content;
-            min-width: 320px;
-            max-width: min(92vw, 720px);
+            width: auto;
+            min-width: 0;
+            max-width: 92vw;
             box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
         }
 
