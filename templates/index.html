@@ -115,46 +115,51 @@
 
         .search {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) auto auto;
-            gap: 8px;
+            grid-template-columns: 1fr auto;
+            gap: 5px;
             background: var(--card);
             border: 1px solid var(--line);
-            border-radius: 14px;
-            padding: 8px;
+            border-radius: 12px;
+            padding: 5px;
+            align-items: center;
         }
 
         .search input {
             border: 0;
             outline: none;
-            font-size: 0.96rem;
-            padding: 6px 10px;
+            font-size: 0.85rem;
+            padding: 6px 7px;
             background: transparent;
             color: var(--text);
             font-family: inherit;
+            min-height: 32px;
         }
 
-        .search button {
+        .search button,
+        .search .clear-btn {
             border: 0;
-            background: var(--text);
-            color: #fff;
-            padding: 9px 14px;
-            border-radius: 10px;
-            font-weight: 700;
+            width: 32px;
+            height: 32px;
+            padding: 0;
+            border-radius: 8px;
             cursor: pointer;
             font-family: inherit;
-        }
-
-        .search .clear-btn {
             display: inline-flex;
             align-items: center;
             justify-content: center;
+            font-size: 0;
+        }
+
+        .search button {
+            background: var(--text);
+            color: #fff;
+        }
+
+        .search .clear-btn {
             border: 1px solid var(--line);
             color: var(--text);
-            padding: 9px 14px;
-            border-radius: 10px;
-            font-weight: 700;
-            text-decoration: none;
             background: #fff;
+            font-size: 0.9rem;
         }
 
         .chips {
@@ -682,9 +687,9 @@
             }
 
             .search {
-                grid-template-columns: 1fr;
-                gap: 6px;
-                padding: 7px;
+                grid-template-columns: 1fr auto;
+                gap: 5px;
+                padding: 5px;
             }
 
             .search input {
@@ -694,8 +699,8 @@
 
             .search button,
             .search .clear-btn {
-                min-height: 40px;
-                justify-content: center;
+                width: 36px;
+                height: 36px;
             }
 
             .chips {
@@ -833,6 +838,15 @@
         <section class="controls">
             <form class="search" action="/" method="get">
                 <input type="text" name="search" placeholder="Search title, description, category..." value="{{ request.args.get('search', '') }}">
+                <button type="submit" aria-label="Search">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"/>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                </button>
+                {% if request.args.get('search') or request.args.get('category') or request.args.get('min_price') or request.args.get('max_price') or request.args.get('show') or request.args.get('sort') %}
+                    <a class="clear-btn" href="{{ url_for('home') }}" aria-label="Clear search">✕</a>
+                {% endif %}
                 {% if request.args.get('category') %}
                     <input type="hidden" name="category" value="{{ request.args.get('category') }}">
                 {% endif %}
@@ -848,10 +862,6 @@
                 {% if request.args.get('sort') %}
                     <input type="hidden" name="sort" value="{{ request.args.get('sort') }}">
                 {% endif %}
-                <button type="submit">Search</button>
-                {% if request.args.get('search') or request.args.get('category') or request.args.get('min_price') or request.args.get('max_price') or request.args.get('show') or request.args.get('sort') %}
-                    <a class="clear-btn" href="{{ url_for('home') }}">Clear</a>
-                {% endif %}
             </form>
 
             {% set active_category = request.args.get('category') %}
@@ -861,16 +871,6 @@
             {% set active_min = request.args.get('min_price', '') %}
             {% set active_max = request.args.get('max_price', '') %}
             {% set active_filter_count = (1 if active_min else 0) + (1 if active_max else 0) + (1 if active_show else 0) + (1 if active_sort and active_sort not in ('', 'newest') else 0) %}
-            <div class="chips">
-                <a class="chip {% if not active_category %}active{% endif %}" href="{{ url_for('home', search=active_search, min_price=active_min, max_price=active_max, show=active_show, sort=active_sort) }}">All</a>
-                <a class="chip {% if active_category == 'Furniture' %}active{% endif %}" href="{{ url_for('home', category='Furniture', search=active_search, min_price=active_min, max_price=active_max, show=active_show, sort=active_sort) }}">Furniture</a>
-                <a class="chip {% if active_category == 'Kitchen' %}active{% endif %}" href="{{ url_for('home', category='Kitchen', search=active_search, min_price=active_min, max_price=active_max, show=active_show, sort=active_sort) }}">Kitchen</a>
-                <a class="chip {% if active_category == 'Electronics' %}active{% endif %}" href="{{ url_for('home', category='Electronics', search=active_search, min_price=active_min, max_price=active_max, show=active_show, sort=active_sort) }}">Electronics</a>
-                <a class="chip {% if active_category == 'Room' %}active{% endif %}" href="{{ url_for('home', category='Room', search=active_search, min_price=active_min, max_price=active_max, show=active_show, sort=active_sort) }}">Room</a>
-                <a class="chip {% if active_category == 'Clothing' %}active{% endif %}" href="{{ url_for('home', category='Clothing', search=active_search, min_price=active_min, max_price=active_max, show=active_show, sort=active_sort) }}">Clothing</a>
-                <a class="chip {% if active_category == 'Other' %}active{% endif %}" href="{{ url_for('home', category='Other', search=active_search, min_price=active_min, max_price=active_max, show=active_show, sort=active_sort) }}">Other</a>
-            </div>
-
             <details class="filter-panel" {% if active_filter_count > 0 %}open{% endif %}>
                 <summary class="filter-toggle">
                     Filters
@@ -911,6 +911,16 @@
                     </form>
                 </div>
             </details>
+
+            <div class="chips">
+                <a class="chip {% if not active_category %}active{% endif %}" href="{{ url_for('home', search=active_search, min_price=active_min, max_price=active_max, show=active_show, sort=active_sort) }}">All</a>
+                <a class="chip {% if active_category == 'Furniture' %}active{% endif %}" href="{{ url_for('home', category='Furniture', search=active_search, min_price=active_min, max_price=active_max, show=active_show, sort=active_sort) }}">Furniture</a>
+                <a class="chip {% if active_category == 'Kitchen' %}active{% endif %}" href="{{ url_for('home', category='Kitchen', search=active_search, min_price=active_min, max_price=active_max, show=active_show, sort=active_sort) }}">Kitchen</a>
+                <a class="chip {% if active_category == 'Electronics' %}active{% endif %}" href="{{ url_for('home', category='Electronics', search=active_search, min_price=active_min, max_price=active_max, show=active_show, sort=active_sort) }}">Electronics</a>
+                <a class="chip {% if active_category == 'Room' %}active{% endif %}" href="{{ url_for('home', category='Room', search=active_search, min_price=active_min, max_price=active_max, show=active_show, sort=active_sort) }}">Room</a>
+                <a class="chip {% if active_category == 'Clothing' %}active{% endif %}" href="{{ url_for('home', category='Clothing', search=active_search, min_price=active_min, max_price=active_max, show=active_show, sort=active_sort) }}">Clothing</a>
+                <a class="chip {% if active_category == 'Other' %}active{% endif %}" href="{{ url_for('home', category='Other', search=active_search, min_price=active_min, max_price=active_max, show=active_show, sort=active_sort) }}">Other</a>
+            </div>
         </section>
 
         <section class="list">
