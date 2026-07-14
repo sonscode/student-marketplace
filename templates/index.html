@@ -363,7 +363,7 @@
 
         .menu-list {
             position: absolute;
-            right: 0;
+            left: 0;
             top: calc(100% + 4px);
             z-index: 30;
             display: none;
@@ -376,11 +376,6 @@
             border-radius: 10px;
             background: #fff;
             box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
-        }
-
-        .menu-list.left {
-            right: auto;
-            left: 0;
         }
 
         .menu-list.open {
@@ -968,6 +963,7 @@
                                 <div class="menu-wrap">
                                     <button class="menu-toggle" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Listing actions">⋯</button>
                                     <div class="menu-list" role="menu">
+                                        <button class="action-link menu-close-btn" type="button" role="menuitem" aria-label="Close menu">✕ Close</button>
                                         <a class="action-link" role="menuitem" href="{{ detail_url }}">View</a>
                                         {% if item['can_manage'] %}
                                             <a class="action-link" role="menuitem" href="{{ url_for('edit_listing', id=item['id']) }}">Edit</a>
@@ -1033,16 +1029,29 @@
                 });
             });
 
-            function repositionMenu(m) {
-                if (!m || !m.classList.contains("open")) return;
-                var r = m.getBoundingClientRect();
+            function closeAllMenus() {
+                document.querySelectorAll(".menu-list.open").forEach(function (openMenu) {
+                    openMenu.classList.remove("open");
+                    openMenu.style.maxWidth = "";
+                    var t = openMenu.closest(".menu-wrap")?.querySelector(".menu-toggle");
+                    if (t) t.setAttribute("aria-expanded", "false");
+                    var c = openMenu.closest(".card");
+                    if (c) c.style.zIndex = "";
+                });
+            }
+
+            function openMenu(menu, toggle, card) {
+                closeAllMenus();
+                menu.classList.add("open");
+                toggle.setAttribute("aria-expanded", "true");
+                if (card) card.style.zIndex = "100";
+                // Force reflow then constrain width if off-screen
+                void menu.offsetHeight;
+                var r = menu.getBoundingClientRect();
                 var pad = 12;
-                var overflow = r.left - pad;
-                m.classList.toggle("left", overflow < 0);
-                if (overflow < 0) {
-                    m.style.maxWidth = Math.min(parseInt(getComputedStyle(m).minWidth) || 150, window.innerWidth - pad * 2) + "px";
-                } else {
-                    m.style.maxWidth = "";
+                var maxW = window.innerWidth - r.left - pad;
+                if (r.right > window.innerWidth - pad) {
+                    menu.style.maxWidth = Math.max(150, maxW) + "px";
                 }
             }
 
@@ -1051,30 +1060,20 @@
                 var card = toggle.closest(".card");
                 toggle.addEventListener("click", function (event) {
                     event.stopPropagation();
-                    var isOpen = menu.classList.toggle("open");
-                    toggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
-                    if (card) card.style.zIndex = isOpen ? "100" : "";
-                    if (isOpen) repositionMenu(menu);
+                    if (menu.classList.contains("open")) {
+                        menu.classList.remove("open");
+                        toggle.setAttribute("aria-expanded", "false");
+                        if (card) card.style.zIndex = "";
+                        menu.style.maxWidth = "";
+                    } else {
+                        openMenu(menu, toggle, card);
+                    }
                 });
             });
 
             document.addEventListener("click", function (event) {
-                if (!event.target.closest(".menu-wrap")) {
-                    document.querySelectorAll(".menu-list.open").forEach(function (openMenu) {
-                        openMenu.classList.remove("left");
-                        openMenu.classList.remove("open");
-                        var t = openMenu.parentElement.querySelector(".menu-toggle");
-                        if (t) t.setAttribute("aria-expanded", "false");
-                        var c = openMenu.closest(".card");
-                        if (c) c.style.zIndex = "";
-                    });
-                }
+                closeAllMenus();
             });
-
-            var rv = null;
-            function repositionAll() { document.querySelectorAll(".menu-list.open").forEach(repositionMenu); }
-            window.addEventListener("scroll", function () { if (!rv) rv = requestAnimationFrame(function () { rv = null; repositionAll(); }); }, true);
-            window.addEventListener("resize", function () { if (!rv) rv = requestAnimationFrame(function () { rv = null; repositionAll(); }); });
         });
     </script>
     <script src="{{ url_for('static', filename='js/lightbox.js') }}"></script>
