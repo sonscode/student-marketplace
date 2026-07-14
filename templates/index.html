@@ -298,6 +298,13 @@
             flex-shrink: 0;
         }
 
+        .badge.you-badge {
+            background: #e8e0ff;
+            color: #5b3cc4;
+            font-size: 0.7rem;
+            padding: 2px 7px;
+        }
+
         .thumb {
             width: 56px;
             height: 56px;
@@ -936,6 +943,9 @@
                                 </a>
                                 {% if item['is_featured'] == 1 %}
                                     <span class="badge featured" style="font-size:0.7rem;padding:2px 7px;">🔥 Featured</span>
+                                {% endif %}
+                                {% if item['can_manage'] %}
+                                    <span class="badge you-badge">You</span>
                                 {% endif %}
                             </h2>
 
