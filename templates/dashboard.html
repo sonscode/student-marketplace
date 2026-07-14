@@ -19,12 +19,15 @@ body{margin:0;font-family:"Manrope","Segoe UI",sans-serif;color:var(--text);back
 .stat .value{font-size:1.25rem;font-weight:800;letter-spacing:-.01em}
 .list{display:grid;gap:8px}
 .card h2{margin:0 0 2px;font-size:.98rem;line-height:1.2;letter-spacing:-.01em}
+.card-footer{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:7px}
 .badges{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;align-items:center}
 .meta{margin:0;font-size:.9rem;color:var(--muted);display:flex;flex-wrap:wrap;gap:5px;align-items:center}
 .summary{margin:4px 0 0;color:#2c3037;font-size:.92rem;line-height:1.45}
 .chip{border-radius:999px;padding:3px 8px;font-size:.76rem;font-weight:800;background:#f1ecdf;color:#3b3e44;display:inline-block}
 .chip.featured{background:#ffe5e1;color:#811e15}
 .chip.expired{background:#e2e2e2;color:#474747}
+.badge.verified-icon{background:#dcfce7;color:#166534;display:inline-flex;align-items:center;gap:3px;padding:2px 7px;font-size:.76rem;font-weight:800;border-radius:999px;flex-shrink:0}
+.badge.verified-icon svg{width:14px;height:14px;flex-shrink:0}
 .payment-status-icon{margin-right:.2em;display:inline-block;line-height:1}
 .thumb-link{display:block;border-radius:6px}
 .thumb{border-radius:6px;object-fit:cover}
@@ -89,10 +92,9 @@ body{margin:0;font-family:"Manrope","Segoe UI",sans-serif;color:var(--text);back
 {% if item['is_expired'] %}<span class="deadline expired">Expired {{ item['days_left'] * -1 }} day(s) ago</span>{% elif item['is_soon'] %}<span class="deadline soon">⚡ {{ item['days_left'] }} day(s) left</span>{% else %}<span class="deadline">{{ item['days_left'] }} day(s) left</span>{% endif %}
 </p>
 {% if item['description']|length > 160 %}<p class="summary">{{ item['description'][:160] ~ '...' }}</p>{% else %}<p class="summary">{{ item['description'] }}</p>{% endif %}
-{% if (current_user and current_user.get('is_verified')) or item['is_expired'] %}
+{% if item['is_expired'] %}
 <div class="badges">
-{% if current_user and current_user.get('is_verified') %}<span class="badge verified">Verified Seller</span>{% endif %}
-{% if item['is_expired'] %}<span class="badge expired">Expired</span>{% endif %}
+<span class="badge expired">Expired</span>
 </div>
 {% endif %}
 <div class="card-footer">
@@ -108,6 +110,14 @@ body{margin:0;font-family:"Manrope","Segoe UI",sans-serif;color:var(--text);back
 </div>
 </div>
 <span class="badge views-badge">👁 {{ item['view_count'] or 0 }} views</span>
+{% if current_user and current_user.get('is_verified') %}
+<span class="badge verified-icon" title="Verified Seller">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+<polyline points="22 4 12 14.01 9 11.01"/>
+</svg>
+</span>
+{% endif %}
 </div>
 </div>
 {% if item['image'] %}<a class="thumb-link lightbox-trigger" href="{{ listing_image_url(item['image']) }}" title="Open full image"><img class="thumb" src="{{ listing_image_url(item['image']) }}" alt="{{ item['title'] }}"></a>{% endif %}

@@ -246,6 +246,18 @@
             line-height: 1.5;
         }
 
+        .card-footer {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            margin-top: 7px;
+        }
+
+        .card-footer .menu-wrap {
+            margin-top: 0;
+        }
+
         .badges {
             display: flex;
             flex-wrap: wrap;
@@ -269,6 +281,21 @@
         .badge.expired {
             background: #e2e2e2;
             color: #474747;
+        }
+
+        .badge.verified-icon {
+            background: #dcfce7;
+            color: #166534;
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            padding: 3px 7px;
+        }
+
+        .badge.verified-icon svg {
+            width: 14px;
+            height: 14px;
+            flex-shrink: 0;
         }
 
         .thumb {
@@ -951,15 +978,16 @@
                                     </div>
                                 </div>
 
-                                {% if item['seller_is_verified'] or item['is_expired'] %}
-                                <div class="badges">
-                                    {% if item['seller_is_verified'] %}
-                                        <span class="badge verified">Verified Seller</span>
-                                    {% endif %}
-                                    {% if item['is_expired'] %}
-                                        <span class="badge expired">Expired</span>
-                                    {% endif %}
-                                </div>
+                                {% if item['is_expired'] %}
+                                    <span class="chip expired">Expired</span>
+                                {% endif %}
+                                {% if item['seller_is_verified'] %}
+                                    <span class="badge verified-icon" title="Verified Seller">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                                            <polyline points="22 4 12 14.01 9 11.01"/>
+                                        </svg>
+                                    </span>
                                 {% endif %}
                             </div>
                         </div>
