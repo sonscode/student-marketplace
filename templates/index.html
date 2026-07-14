@@ -35,6 +35,7 @@
                 radial-gradient(circle at 90% 10%, #ffe7dd 0, transparent 24%),
                 var(--bg);
             min-height: 100vh;
+            overflow-x: hidden;
         }
 
         .page {
@@ -109,8 +110,23 @@
 
         .controls {
             display: grid;
-            gap: 12px;
+            gap: 10px;
             margin-bottom: 18px;
+        }
+
+        .top-controls {
+            display: flex;
+            gap: 8px;
+            align-items: flex-start;
+        }
+
+        .top-controls .search {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .top-controls .filter-panel {
+            flex-shrink: 0;
         }
 
         .search {
@@ -166,6 +182,7 @@
             display: flex;
             flex-wrap: wrap;
             gap: 8px;
+            overflow: hidden;
         }
 
         .chip {
@@ -544,11 +561,21 @@
             border: 1px solid var(--line);
             border-radius: 14px;
             padding: 10px;
+            position: absolute;
+            left: 0;
+            top: calc(100% + 6px);
+            z-index: 30;
+            width: max-content;
+            min-width: 320px;
+            max-width: min(92vw, 720px);
+            box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
         }
 
         .filter-panel {
             display: grid;
             gap: 8px;
+            position: relative;
+            z-index: 20;
         }
 
         .filter-toggle {
@@ -706,10 +733,10 @@
             .chips {
                 flex-wrap: nowrap;
                 gap: 6px;
-                margin-inline: -4vw;
                 padding: 0 4vw 3px;
                 overflow-x: auto;
                 scrollbar-width: none;
+                margin-inline: 0;
             }
 
             .chips::-webkit-scrollbar {
@@ -734,6 +761,13 @@
 
             .filter-row {
                 padding: 9px;
+                position: absolute;
+                left: 0;
+                top: calc(100% + 6px);
+                width: max-content;
+                min-width: 280px;
+                max-width: min(92vw, 720px);
+                box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
             }
 
             .filter-form {
@@ -836,42 +870,15 @@
         {% include "_flash_messages.html" %}
 
         <section class="controls">
-            <form class="search" action="/" method="get">
-                <input type="text" name="search" placeholder="Search title, description, category..." value="{{ request.args.get('search', '') }}">
-                <button type="submit" aria-label="Search">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="11" cy="11" r="8"/>
-                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                    </svg>
-                </button>
-                {% if request.args.get('search') or request.args.get('category') or request.args.get('min_price') or request.args.get('max_price') or request.args.get('show') or request.args.get('sort') %}
-                    <a class="clear-btn" href="{{ url_for('home') }}" aria-label="Clear search">✕</a>
-                {% endif %}
-                {% if request.args.get('category') %}
-                    <input type="hidden" name="category" value="{{ request.args.get('category') }}">
-                {% endif %}
-                {% if request.args.get('min_price') %}
-                    <input type="hidden" name="min_price" value="{{ request.args.get('min_price') }}">
-                {% endif %}
-                {% if request.args.get('max_price') %}
-                    <input type="hidden" name="max_price" value="{{ request.args.get('max_price') }}">
-                {% endif %}
-                {% if request.args.get('show') %}
-                    <input type="hidden" name="show" value="{{ request.args.get('show') }}">
-                {% endif %}
-                {% if request.args.get('sort') %}
-                    <input type="hidden" name="sort" value="{{ request.args.get('sort') }}">
-                {% endif %}
-            </form>
-
-            {% set active_category = request.args.get('category') %}
-            {% set active_search = request.args.get('search') %}
-            {% set active_show = request.args.get('show') %}
-            {% set active_sort = request.args.get('sort') %}
-            {% set active_min = request.args.get('min_price', '') %}
-            {% set active_max = request.args.get('max_price', '') %}
-            {% set active_filter_count = (1 if active_min else 0) + (1 if active_max else 0) + (1 if active_show else 0) + (1 if active_sort and active_sort not in ('', 'newest') else 0) %}
-            <details class="filter-panel" {% if active_filter_count > 0 %}open{% endif %}>
+            <div class="top-controls">
+                {% set active_category = request.args.get('category') %}
+                {% set active_search = request.args.get('search') %}
+                {% set active_show = request.args.get('show') %}
+                {% set active_sort = request.args.get('sort') %}
+                {% set active_min = request.args.get('min_price', '') %}
+                {% set active_max = request.args.get('max_price', '') %}
+                {% set active_filter_count = (1 if active_min else 0) + (1 if active_max else 0) + (1 if active_show else 0) + (1 if active_sort and active_sort not in ('', 'newest') else 0) %}
+                <details class="filter-panel" {% if active_filter_count > 0 %}open{% endif %}>
                 <summary class="filter-toggle">
                     Filters
                     {% if active_filter_count > 0 %}
@@ -911,6 +918,35 @@
                     </form>
                 </div>
             </details>
+
+                <form class="search" action="/" method="get">
+                    <input type="text" name="search" placeholder="Search title, description, category..." value="{{ request.args.get('search', '') }}">
+                    <button type="submit" aria-label="Search">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="11" cy="11" r="8"/>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                        </svg>
+                    </button>
+                    {% if request.args.get('search') or request.args.get('category') or request.args.get('min_price') or request.args.get('max_price') or request.args.get('show') or request.args.get('sort') %}
+                        <a class="clear-btn" href="{{ url_for('home') }}" aria-label="Clear search">✕</a>
+                    {% endif %}
+                    {% if request.args.get('category') %}
+                        <input type="hidden" name="category" value="{{ request.args.get('category') }}">
+                    {% endif %}
+                    {% if request.args.get('min_price') %}
+                        <input type="hidden" name="min_price" value="{{ request.args.get('min_price') }}">
+                    {% endif %}
+                    {% if request.args.get('max_price') %}
+                        <input type="hidden" name="max_price" value="{{ request.args.get('max_price') }}">
+                    {% endif %}
+                    {% if request.args.get('show') %}
+                        <input type="hidden" name="show" value="{{ request.args.get('show') }}">
+                    {% endif %}
+                    {% if request.args.get('sort') %}
+                        <input type="hidden" name="sort" value="{{ request.args.get('sort') }}">
+                    {% endif %}
+                </form>
+            </div>
 
             <div class="chips">
                 <a class="chip {% if not active_category %}active{% endif %}" href="{{ url_for('home', search=active_search, min_price=active_min, max_price=active_max, show=active_show, sort=active_sort) }}">All</a>
