@@ -30,7 +30,8 @@ body{margin:0;font-family:"Manrope","Segoe UI",sans-serif;color:var(--text);back
 .thumb{border-radius:6px;object-fit:cover}
 .menu-wrap{position:relative;display:inline-block}
 .menu-toggle{border:1px solid var(--line);background:#fff;color:var(--text);border-radius:7px;padding:2px 8px;font-size:1rem;font-weight:800;line-height:1.4;cursor:pointer;font-family:inherit}
-.menu-list{position:absolute;right:0;top:calc(100% + 4px);z-index:999;display:none;flex-direction:column;gap:4px;min-width:150px;padding:6px;border:1px solid var(--line);border-radius:10px;background:#fff;box-shadow:0 12px 28px rgba(15,23,42,.14)}
+.menu-list{position:absolute;right:0;top:calc(100% + 4px);z-index:999;display:none;flex-direction:column;gap:4px;min-width:150px;max-width:min(82vw,260px);padding:6px;border:1px solid var(--line);border-radius:10px;background:#fff;box-shadow:0 12px 28px rgba(15,23,42,.14)}
+.menu-list.left{right:auto;left:0}
 .menu-list.open{display:flex}
 .menu-list .link-btn,.menu-list .danger-btn{display:block;width:100%;text-align:left;border-radius:7px;padding:6px 8px;font-size:.8rem}
 .link-btn,.danger-btn{border:1px solid var(--line);background:#fff;color:var(--text);border-radius:7px;padding:2px 6px;text-decoration:none;font-size:.72rem;font-weight:700;line-height:1.4;font-family:inherit;cursor:pointer}
@@ -139,11 +140,22 @@ body{margin:0;font-family:"Manrope","Segoe UI",sans-serif;color:var(--text);back
 <div id="image-lightbox" class="lightbox-overlay" aria-hidden="true"><div class="lightbox-content"><button id="lightbox-close" class="lightbox-close" type="button">×</button><img id="lightbox-image" class="lightbox-image" src="" alt=""></div></div>
 <script src="{{ url_for('static', filename='js/lightbox.js') }}"></script>
 <script>
+function repositionMenu(m){
+if(!m||!m.classList.contains("open"))return;
+var r=m.getBoundingClientRect();
+var pad=12;
+var overflow=r.left-pad;
+m.classList.toggle("left",overflow<0);
+if(overflow<0)m.style.maxWidth=Math.min(parseInt(getComputedStyle(m).minWidth)||150,window.innerWidth-pad*2)+"px";
+else m.style.maxWidth=""}
 document.addEventListener("DOMContentLoaded",function(){
 document.querySelectorAll(".menu-toggle").forEach(function(t){
 var m=t.parentElement.querySelector(".menu-list"),c=t.closest(".card");
-t.addEventListener("click",function(e){e.stopPropagation();var o=m.classList.toggle("open");t.setAttribute("aria-expanded",o?"true":"false");if(c)c.style.zIndex=o?"100":""})});
-document.addEventListener("click",function(e){if(!e.target.closest(".menu-wrap")){document.querySelectorAll(".menu-list.open").forEach(function(m){m.classList.remove("open");var t=m.parentElement.querySelector(".menu-toggle");if(t)t.setAttribute("aria-expanded","false");var c=m.closest(".card");if(c)c.style.zIndex=""})}})});
+t.addEventListener("click",function(e){e.stopPropagation();var o=m.classList.toggle("open");t.setAttribute("aria-expanded",o?"true":"false");if(c)c.style.zIndex=o?"100":"";if(o)repositionMenu(m)})});
+document.addEventListener("click",function(e){if(!e.target.closest(".menu-wrap")){document.querySelectorAll(".menu-list.open").forEach(function(m){m.classList.remove("left");m.classList.remove("open");var t=m.parentElement.querySelector(".menu-toggle");if(t)t.setAttribute("aria-expanded","false");var c=m.closest(".card");if(c)c.style.zIndex=""})}})
+var rv=null;function repositionAll(){document.querySelectorAll(".menu-list.open").forEach(repositionMenu)}
+window.addEventListener("scroll",function(){if(!rv)rv=requestAnimationFrame(function(){rv=null;repositionAll()})},true);
+window.addEventListener("resize",function(){if(!rv)rv=requestAnimationFrame(function(){rv=null;repositionAll()})})});
 </script>
 </body>
 </html>
