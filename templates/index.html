@@ -573,17 +573,18 @@
         }
 
         .filter-row {
-            position: absolute;
-            top: calc(100% + 6px);
-            left: 0;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
             background: var(--card);
             border: 1px solid var(--line);
             border-radius: 14px;
             padding: 10px;
             z-index: 999999;
             box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
-            width: min(85vw, 320px);
-            height: min(85vw, 320px);
+            width: min(85vw, 260px);
+            height: min(85vw, 260px);
             overflow-y: auto;
         }
 
@@ -785,10 +786,8 @@
                 transform: translate(-50%, -50%);
                 z-index: 999999;
                 box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
-                width: min(92vw, 420px);
-                height: min(92vw, 420px);
-                max-width: 92vw;
-                max-height: 92vw;
+                width: min(85vw, 260px);
+                height: min(85vw, 260px);
                 overflow-y: auto;
             }
 
