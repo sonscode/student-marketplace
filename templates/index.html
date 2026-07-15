@@ -566,44 +566,63 @@
             }
         }
 
+        .filter-panel {
+            position: relative;
+            display: inline-grid;
+            gap: 8px;
+        }
+
         .filter-row {
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0;
             background: var(--card);
             border: 1px solid var(--line);
             border-radius: 14px;
             padding: 10px;
-            position: absolute;
-            right: 0;
-            top: calc(100% + 6px);
-            z-index: 30;
-            width: auto;
-            min-width: 0;
-            max-width: 92vw;
+            z-index: 999999;
             box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
-        }
-
-        .filter-panel {
-            display: grid;
-            gap: 8px;
-            position: relative;
-            z-index: 20;
+            width: min(85vw, 320px);
+            height: min(85vw, 320px);
+            overflow-y: auto;
         }
 
         .filter-toggle {
+            position: relative;
             display: inline-flex;
-            width: fit-content;
             align-items: center;
             justify-content: center;
-            gap: 8px;
             list-style: none;
             border: 1px solid var(--line);
             border-radius: 10px;
             background: #fff;
             color: var(--text);
-            padding: 8px 12px;
+            width: 42px;
+            height: 42px;
+            padding: 0;
             font-weight: 800;
             cursor: pointer;
             user-select: none;
             transition: transform 0.12s ease, box-shadow 0.12s ease;
+            overflow: hidden;
+            font-size: 0.75rem;
+            letter-spacing: -0.02em;
+        }
+
+        .filter-count {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            min-width: 16px;
+            height: 16px;
+            border-radius: 999px;
+            background: var(--chip);
+            color: var(--text);
+            padding: 0 5px;
+            font-size: 0.65rem;
+            line-height: 1;
+            text-align: center;
+            border: 1px solid var(--line);
         }
 
         .filter-toggle:hover {
@@ -624,17 +643,6 @@
 
         .filter-panel[open] .filter-toggle::after {
             transform: rotate(180deg);
-        }
-
-        .filter-count {
-            min-width: 20px;
-            border-radius: 999px;
-            background: var(--chip);
-            color: var(--text);
-            padding: 2px 7px;
-            font-size: 0.74rem;
-            line-height: 1.4;
-            text-align: center;
         }
 
         .filter-form {
@@ -764,20 +772,24 @@
             }
 
             .filter-toggle {
-                width: 100%;
-                min-height: 40px;
+                width: 42px;
+                height: 42px;
                 justify-content: center;
             }
 
             .filter-row {
-                padding: 9px;
-                position: absolute;
-                left: 0;
-                top: calc(100% + 6px);
-                width: max-content;
-                min-width: 280px;
-                max-width: min(92vw, 720px);
+                padding: 10px;
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                z-index: 999999;
                 box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+                width: min(92vw, 420px);
+                height: min(92vw, 420px);
+                max-width: 92vw;
+                max-height: 92vw;
+                overflow-y: auto;
             }
 
             .filter-form {
@@ -889,8 +901,12 @@
                 {% set active_max = request.args.get('max_price', '') %}
                 {% set active_filter_count = (1 if active_min else 0) + (1 if active_max else 0) + (1 if active_show else 0) + (1 if active_sort and active_sort not in ('', 'newest') else 0) %}
                 <details class="filter-panel" {% if active_filter_count > 0 %}open{% endif %}>
-                <summary class="filter-toggle">
-                    Filters
+                <summary class="filter-toggle" aria-label="Filters">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block;">
+                        <polygon points="3 6 9 6 10.5 2 13.5 2 15 6 21 6"/>
+                        <path d="M6 12h12"/>
+                        <path d="M6 18h12"/>
+                    </svg>
                     {% if active_filter_count > 0 %}
                         <span class="filter-count">{{ active_filter_count }}</span>
                     {% endif %}
