@@ -14,7 +14,7 @@
 body{margin:0;font-family:"Manrope","Segoe UI",sans-serif;color:var(--text);background:radial-gradient(circle at 10% 0%,#fff2d7 0,transparent 28%),radial-gradient(circle at 90% 10%,#ffe7dd 0,transparent 24%),var(--bg);min-height:100vh}
 .page{width:min(980px,92vw);margin:34px auto 50px;display:grid;gap:14px}
 .stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
-.stat{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:12px}
+.stat{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:8px 12px}
 .stat .label{display:block;font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
 .stat .value{font-size:1.25rem;font-weight:800;letter-spacing:-.01em}
 .list{display:grid;gap:8px}
@@ -26,6 +26,12 @@ body{margin:0;font-family:"Manrope","Segoe UI",sans-serif;color:var(--text);back
 .chip{border-radius:999px;padding:3px 8px;font-size:.76rem;font-weight:800;background:#f1ecdf;color:#3b3e44;display:inline-block}
 .chip.featured{background:#ffe5e1;color:#811e15}
 .chip.expired{background:#e2e2e2;color:#474747}
+        .badge.you-badge {
+            background: #e8e0ff;
+            color: #5b3cc4;
+            font-size: 0.7rem;
+            padding: 2px 7px;
+        }
 .badge.verified-icon{background:#dcfce7;color:#166534;display:inline-flex;align-items:center;gap:3px;padding:2px 7px;font-size:.76rem;font-weight:800;border-radius:999px;flex-shrink:0}
 .badge.verified-icon svg{width:14px;height:14px;flex-shrink:0}
 .payment-status-icon{margin-right:.2em;display:inline-block;line-height:1}
@@ -44,6 +50,9 @@ body{margin:0;font-family:"Manrope","Segoe UI",sans-serif;color:var(--text);back
 .flash.success{border-color:#bbdfc4;background:#edf9f1;color:#1b5a32}
 .flash.error{border-color:#f0b8b8;background:#fff2f2;color:#772323}
 .flash.info{border-color:#e8dbaf;background:#fff9ea;color:#6f4e15}
+.user-info-bar{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:10px 14px;font-size:.9rem;color:var(--text);display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.user-info-bar .user-name{color:#5b3cc4;background:#e8e0ff;border-radius:6px;padding:1px 7px;font-weight:800}
+.user-info-bar .user-phone{font-weight:700;color:var(--text)}
 .empty{border:1px dashed var(--line);border-radius:14px;background:#fff;color:var(--muted);text-align:center;padding:22px}
 .empty p{margin:0 0 12px}
 .history{border:1px solid var(--line);border-radius:14px;background:#fff;padding:14px;display:grid;gap:10px}
@@ -69,10 +78,11 @@ body{margin:0;font-family:"Manrope","Segoe UI",sans-serif;color:var(--text);back
 {% include "_navigation.html" %}
 <main class="page">
 {% include "_flash_messages.html" %}
+<div class="user-info-bar">Logged in as: <span class="user-name">{{ current_user['full_name'] }}</span>, <span class="user-phone">{{ current_user['phone'] }}</span></div>
 <section class="stats">
 <article class="stat"><span class="label">Total</span><strong class="value">{{ stats['total'] }}</strong></article>
 <article class="stat"><span class="label">Active</span><strong class="value">{{ stats['active'] }}</strong></article>
-<article class="stat"><span class="label">Due Soon</span><strong class="value">{{ stats['soon'] }}</strong></article>
+<!-- <article class="stat"><span class="label">Due Soon</span><strong class="value">{{ stats['soon'] }}</strong></article> -->
 <article class="stat"><span class="label">Featured</span><strong class="value">{{ stats['featured'] }}</strong></article>
 <article class="stat"><span class="label">Expired</span><strong class="value">{{ stats['expired'] }}</strong></article>
 </section>

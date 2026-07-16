@@ -5,30 +5,63 @@
             <span class="site-title">MARKETPLACE</span>
         </a>
         <div class="nav-links">
-            <a class="nav-link" href="{{ url_for('home') }}">Listings</a>
-            {% if is_logged_in %}
-                <a class="nav-link" href="{{ url_for('dashboard') }}">Dashboard</a>
-                <a class="nav-link primary" href="{{ url_for('create') }}">+ Add Listing</a>
-                {% if current_user and current_user.get('is_admin') %}
-                    <a class="nav-link admin" href="{{ url_for('admin_panel') }}">Admin</a>
+            <!-- First 3 items always visible on mobile -->
+            <div class="nav-links-visible">
+                <a class="nav-link" href="{{ url_for('home') }}">Listings</a>
+                {% if is_logged_in %}
+                    <a class="nav-link" href="{{ url_for('dashboard') }}">Dashboard</a>
+                    <a class="nav-link primary" href="{{ url_for('create') }}">+ Add Listing</a>
+                {% else %}
+                    <a class="nav-link" href="{{ url_for('register') }}">Register</a>
+                    <a class="nav-link" href="{{ url_for('login') }}">Login</a>
                 {% endif %}
-                <form class="inline-form" method="POST" action="{{ url_for('logout') }}">
-                    <button class="nav-link logout-btn" type="submit">Logout</button>
-                </form>
-                <span class="nav-user">Hi, {{ current_user['full_name'] }}</span>
-            {% else %}
-                <a class="nav-link" href="{{ url_for('register') }}">Register</a>
-                <a class="nav-link" href="{{ url_for('login') }}">Login</a>
-                {% if google_oauth_enabled %}
-                    <a class="nav-link google" href="{{ url_for('login_google', next=url_for('home')) }}">Google</a>
+            </div>
+
+            <!-- Extra items hidden on mobile, shown inline on desktop -->
+            <div class="nav-links-extra" id="navLinksExtra">
+                {% if is_logged_in %}
+                    {% if current_user and current_user.get('is_admin') %}
+                        <a class="nav-link admin" href="{{ url_for('admin_panel') }}">Admin</a>
+                    {% endif %}
+                    <form class="inline-form" method="POST" action="{{ url_for('logout') }}">
+                        <button class="nav-link logout-btn" type="submit">Logout</button>
+                    </form>
+                    <span class="nav-user">Hi, {{ current_user['full_name'] }}</span>
+                {% else %}
+                    {% if google_oauth_enabled %}
+                        <a class="nav-link google" href="{{ url_for('login_google', next=url_for('home')) }}">Google</a>
+                    {% endif %}
+                    <a class="nav-link primary" href="{{ url_for('login', next=url_for('create')) }}">+ Add Listing</a>
                 {% endif %}
-                <a class="nav-link primary" href="{{ url_for('login', next=url_for('create')) }}">+ Add Listing</a>
-            {% endif %}
+            </div>
+
+            <!-- 3-dot menu wrapper (mobile only) -->
+            <div class="nav-more-wrap">
+                <button class="nav-more-btn" id="navMoreBtn" aria-label="More options">⋮</button>
+                <div class="nav-more-dropdown" id="navMoreDropdown">
+                    <button class="nav-dropdown-close" id="navDropdownClose" aria-label="Close menu">✕</button>
+                    {% if is_logged_in %}
+                        {% if current_user and current_user.get('is_admin') %}
+                            <a class="nav-link admin" href="{{ url_for('admin_panel') }}">Admin</a>
+                        {% endif %}
+                        <form class="inline-form" method="POST" action="{{ url_for('logout') }}">
+                            <button class="nav-link logout-btn" type="submit">Logout</button>
+                        </form>
+                        <span class="nav-user">Hi, {{ current_user['full_name'] }}</span>
+                    {% else %}
+                        {% if google_oauth_enabled %}
+                            <a class="nav-link google" href="{{ url_for('login_google', next=url_for('home')) }}">Google</a>
+                        {% endif %}
+                        <a class="nav-link primary" href="{{ url_for('login', next=url_for('create')) }}">+ Add Listing</a>
+                    {% endif %}
+                </div>
+            </div>
         </div>
     </div>
 </nav>
 
 <style>
+/* ── Original nav styles (preserved) ── */
 .nav-bar {
     border-bottom: 1px solid var(--line);
     background: rgba(255,255,255,0.7);
@@ -123,6 +156,103 @@
     margin: 0;
     display: inline;
 }
+
+/* ── 3-dot button ── */
+.nav-more-btn {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--text);
+    font-size: 1.3rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+    padding: 0;
+    flex-shrink: 0;
+}
+.nav-more-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(26,21,10,0.08);
+}
+
+/* ── Extra nav items hidden on mobile, inline on desktop ── */
+.nav-links-extra {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* ── Dropdown (like filter panel) ── */
+.nav-more-wrap {
+    position: relative;
+    display: none;
+}
+.nav-more-dropdown {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 999999;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 10px;
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+    min-width: 200px;
+    max-width: 85vw;
+    flex-direction: column;
+    gap: 6px;
+}
+.nav-more-dropdown.open {
+    display: flex;
+}
+.nav-dropdown-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--text);
+    font-size: 0.85rem;
+    cursor: pointer;
+    margin-left: auto;
+    margin-bottom: 4px;
+    transition: transform 0.12s ease;
+    padding: 0;
+    line-height: 1;
+}
+.nav-dropdown-close:hover {
+    transform: scale(1.08);
+}
+.nav-more-dropdown .nav-link {
+    width: 100%;
+    justify-content: center;
+    padding: 9px 12px;
+    font-size: 0.85rem;
+}
+.nav-more-dropdown .inline-form {
+    display: block;
+    width: 100%;
+}
+.nav-more-dropdown .inline-form .nav-link {
+    width: 100%;
+}
+.nav-more-dropdown .nav-user {
+    text-align: center;
+    padding: 4px 0;
+    font-size: 0.85rem;
+}
+
+/* ── Responsive ── */
 @media (max-width: 700px) {
     .nav-inner {
         flex-direction: column;
@@ -147,6 +277,22 @@
     .nav-user {
         display: none;
     }
+    .nav-more-dropdown .nav-user {
+        display: block;
+    }
+    .nav-more-btn {
+        display: flex;
+    }
+    .nav-more-wrap {
+        display: block;
+    }
+    .nav-links-extra {
+        display: none;
+    }
+    .nav-links-visible .nav-link {
+        padding: 6px 9px;
+        font-size: 0.78rem;
+    }
 }
 
 @media (max-width: 380px) {
@@ -162,5 +308,59 @@
         font-size: 0.72rem;
         white-space: nowrap;
     }
+    .nav-links-visible .nav-link {
+        flex: 1;
+        justify-content: center;
+        min-width: 0;
+        padding: 5px 6px;
+        font-size: 0.72rem;
+        white-space: nowrap;
+    }
 }
 </style>
+
+<script>
+(function() {
+    const moreBtn = document.getElementById('navMoreBtn');
+    const dropdown = document.getElementById('navMoreDropdown');
+    const closeBtn = document.getElementById('navDropdownClose');
+
+    if (!moreBtn || !dropdown || !closeBtn) return;
+
+    function openDropdown() {
+        dropdown.classList.add('open');
+    }
+
+    function closeDropdown() {
+        dropdown.classList.remove('open');
+    }
+
+    moreBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (dropdown.classList.contains('open')) {
+            closeDropdown();
+        } else {
+            openDropdown();
+        }
+    });
+
+    closeBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        closeDropdown();
+    });
+
+    // Close on outside click
+    document.addEventListener('click', function(e) {
+        if (dropdown.classList.contains('open') && !dropdown.contains(e.target) && e.target !== moreBtn && !moreBtn.contains(e.target)) {
+            closeDropdown();
+        }
+    });
+
+    // Close on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && dropdown.classList.contains('open')) {
+            closeDropdown();
+        }
+    });
+})();
+</script>

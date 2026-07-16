@@ -84,6 +84,9 @@
             gap: 16px;
             animation: rise 0.24s ease both;
         }
+        .detail-head {
+            display: flex;
+        }
 
         .title {
             margin: 0;
@@ -105,6 +108,13 @@
             border-radius: 999px;
             padding: 5px 10px;
             background: #f1ecdf;
+        }
+
+        .badge.you-badge {
+            background: #e8e0ff;
+            color: #5b3cc4;
+            font-size: 0.7rem;
+            padding: 2px 7px;
         }
 
         .badge.featured {
@@ -381,6 +391,7 @@
             font-size: 0.94rem;
             line-height: 1.2;
             letter-spacing: -0.01em;
+            display: flex;
         }
 
         .related-title a {
@@ -707,8 +718,8 @@
         {% set flash_stack_class = "" %}
 
         <article class="card">
+            <div class="detail-head">
             <h1 class="title">{{ item['title'] }}</h1>
-
             <div class="meta">
                 {% if item['is_featured'] == 1 %}
                     <span class="badge featured">🔥 Featured</span>
@@ -716,7 +727,11 @@
                 {% if is_expired %}
                     <span class="badge expired">Expired</span>
                 {% endif %}
+                {% if can_manage %}
+                    <span class="badge you-badge">You</span>
+                {% endif %}
             </div>
+        </div>
 
             {% if is_expired %}
                 <section class="expired-banner" role="status">
@@ -888,6 +903,14 @@
                             <div class="related-body">
                                 <h3 class="related-title">
                                     <a href="{{ url_for('listing_detail', id=related['id'], category=item['category']) }}">{{ related['title'] }}</a>
+                                    <div class="related-badges">
+                                        {% if related['is_featured'] == 1 %}
+                                            <span class="mini-badge featured">🔥 Featured</span>
+                                        {% endif %}
+                                        {% if related['can_manage'] %}
+                                            <span class="badge you-badge">You</span>
+                                        {% endif %}
+                                    </div>
                                 </h3>
 
                                 <p class="related-meta">
@@ -902,11 +925,7 @@
                                     {% endif %}
                                 </p>
 
-                                <div class="related-badges">
-                                    {% if related['is_featured'] == 1 %}
-                                        <span class="mini-badge featured">🔥 Featured</span>
-                                    {% endif %}
-                                </div>
+
 
                                 <a class="related-link" href="{{ url_for('listing_detail', id=related['id'], category=item['category']) }}">View Listing</a>
                             </div>

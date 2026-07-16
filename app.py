@@ -26,7 +26,7 @@ from services import camerpay as campay
 from apscheduler.schedulers.background import BackgroundScheduler
 
 load_dotenv()
-
+# search
 if all(os.getenv(name) for name in ("CLOUDINARY_CLOUD_NAME", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET")):
     cloudinary.config(
         cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
@@ -1671,9 +1671,7 @@ def home():
         params.append(category)
 
     if search:
-        query = f"%{search}%"
-        conditions.append("(title LIKE ? OR category LIKE ? OR price LIKE ? OR phone LIKE ? OR description LIKE ?)")
-        params.extend([query, query, query, query, query])
+        pass  # skip SQL LIKE filter; fuzzy matching below handles it
 
     if min_price:
         try:
@@ -1745,7 +1743,7 @@ def home():
                     clean_search = re.sub(r"[^a-zA-Z0-9]", "", search.lower())
                     clean_word = re.sub(r"[^a-zA-Z0-9]", "", word.lower())
                     similarity = difflib.SequenceMatcher(None, clean_search, clean_word).ratio()
-                    if clean_search in clean_word or similarity > 0.50:
+                    if clean_search in clean_word or similarity > 0.5:
                         matched = True
                         break
                 if matched:

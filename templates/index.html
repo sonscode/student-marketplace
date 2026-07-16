@@ -44,6 +44,21 @@
             overflow-x: hidden;
         }
 
+        .title_container {
+            position: relative;
+            top: 0;
+            margin: 0px auto 3px;
+        }
+
+        .listings-title {
+            font-family: "Sora", "Manrope", sans-serif;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            color: var(--text);
+            font-size: 1.1rem;
+            
+        }
+
         .header {
             display: flex;
             justify-content: space-between;
@@ -132,47 +147,49 @@
         }
 
         .search {
-            display: grid;
+            display: flex;
             grid-template-columns: 1fr auto;
             gap: 4px;
             background: var(--card);
             border: 1px solid var(--line);
             border-radius: 10px;
             padding: 3px;
+            justify-content: center;
             align-items: center;
             width: 100%;
             min-width: 0;
             max-width: 100%;
+            height: 42px;
         }
 
         .search input {
             border: 0;
             outline: none;
             font-size: 0.85rem;
-            padding: 3px 6px;
+            margin: 0px 0 0 5px;
             background: transparent;
             color: var(--text);
             font-family: inherit;
-            min-height: 28px;
-            width: 100%;
+            min-height: 25px;
+            width: 99%;
             max-width: 100%;
-            min-width: 0;
             box-sizing: border-box;
         }
 
         .search button,
         .search .clear-btn {
             border: 0;
-            width: 28px;
-            height: 28px;
+            width: 33px;
+            height: 33px;
             padding: 0;
-            border-radius: 7px;
+            border-radius: 150px;
             cursor: pointer;
             font-family: inherit;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             font-size: 0;
+            
         }
 
         .search button {
@@ -686,6 +703,28 @@
             color: var(--text);
         }
 
+        .filter-close {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #fff;
+            color: var(--text);
+            font-size: 0.85rem;
+            cursor: pointer;
+            margin-left: auto;
+            margin-bottom: 6px;
+            transition: transform 0.12s ease;
+            padding: 0;
+            line-height: 1;
+        }
+        .filter-close:hover {
+            transform: scale(1.08);
+        }
+
         .filter-submit {
             border: 1px solid var(--line);
             border-radius: 10px;
@@ -729,20 +768,24 @@
             }
 
             .search {
+                display: flex;
                 grid-template-columns: 1fr auto;
                 gap: 5px;
-                padding: 5px;
+                padding: 0 0 0 8px;
             }
 
             .search input {
-                min-height: 40px;
+                max-width: 99%;
+                min-height: 20px;
                 font-size: 16px; /* prevent iOS zoom */
             }
 
             .search button,
             .search .clear-btn {
-                width: 36px;
-                height: 36px;
+                margin: 1px 4px;
+                width: 39px;
+                height: 33px;
+                
             }
 
             .chips {
@@ -781,7 +824,7 @@
                 left: 0;
                 z-index: 999999;
                 box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
-                width: min(85vw, 260px);
+                width: min(90vw, 320px);
             }
 
             .filter-form {
@@ -795,6 +838,15 @@
 
             .filter-group.price-group {
                 grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+            }
+            .filter-group.price-group input {
+                width: 100%;
+                min-width: 0;
+                font-size: 0.8rem;
+                padding: 5px 6px;
+            }
+            .filter-group.price-group span {
+                font-size: 0.8rem;
             }
 
             .filter-submit {
@@ -881,6 +933,9 @@
 <body>
     {% include "_navigation.html" %}
     <main class="page">
+        <!-- <div class="title_container">
+            <span class="listings-title">LISTINGS</span>
+        </div> -->
         {% include "_flash_messages.html" %}
 
         <section class="controls">
@@ -904,6 +959,7 @@
                     {% endif %}
                 </summary>
                 <div class="filter-row">
+                    <button class="filter-close" id="filterCloseBtn" type="button" aria-label="Close filters">✕</button>
                     <form class="filter-form" action="/" method="get">
                         {% if active_search %}<input type="hidden" name="search" value="{{ active_search }}">{% endif %}
                         {% if active_category %}<input type="hidden" name="category" value="{{ active_category }}">{% endif %}
@@ -939,15 +995,16 @@
 
                 <form class="search" action="/" method="get">
                     <input type="text" name="search" placeholder="Search title, description, category..." value="{{ request.args.get('search', '') }}">
-                    <button type="submit" aria-label="Search">
+                    {% if request.args.get('search') or request.args.get('category') or request.args.get('min_price') or request.args.get('max_price') or request.args.get('show') or request.args.get('sort') %}
+                        <a class="clear-btn" href="{{ url_for('home') }}" aria-label="Clear search">✕</a>
+                    {% endif %}
+                    <button type="submit" aria-label="Search" style="height: 1000;">
                         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                             <circle cx="11" cy="11" r="8"/>
                             <line x1="21" y1="21" x2="16.65" y2="16.65"/>
                         </svg>
                     </button>
-                    {% if request.args.get('search') or request.args.get('category') or request.args.get('min_price') or request.args.get('max_price') or request.args.get('show') or request.args.get('sort') %}
-                        <a class="clear-btn" href="{{ url_for('home') }}" aria-label="Clear search">✕</a>
-                    {% endif %}
+
                     {% if request.args.get('category') %}
                         <input type="hidden" name="category" value="{{ request.args.get('category') }}">
                     {% endif %}
@@ -1028,7 +1085,7 @@
                             </p>
 
                             {% if item['description']|length > 120 %}
-                                <p class="summary">{{ (item['description'][:120] ~ '...') | highlight(search) }}</p>
+                                <p class="summary">{{ (item['description'][:40] ~ '...') | highlight(search) }}</p>
                             {% else %}
                                 <p class="summary">{{ item['description'] | highlight(search) }}</p>
                             {% endif %}
@@ -1149,6 +1206,28 @@
                 closeAllMenus();
             });
         });
+    </script>
+    <script>
+        (function() {
+            var filterPanel = document.querySelector('.filter-panel');
+            var filterClose = document.getElementById('filterCloseBtn');
+            var filterToggle = document.querySelector('.filter-toggle');
+
+            if (filterPanel && filterClose) {
+                filterClose.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    filterPanel.removeAttribute('open');
+                });
+            }
+
+            if (filterPanel && filterToggle) {
+                document.addEventListener('click', function(e) {
+                    if (filterPanel.hasAttribute('open') && !filterPanel.contains(e.target)) {
+                        filterPanel.removeAttribute('open');
+                    }
+                });
+            }
+        })();
     </script>
     <script src="{{ url_for('static', filename='js/lightbox.js') }}"></script>
 </body>

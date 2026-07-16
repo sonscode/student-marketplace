@@ -22,7 +22,7 @@
     --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.06);
     --shadow-lg: 0 12px 30px rgba(15, 23, 42, 0.06);
     --shadow-xl: 0 20px 40px rgba(15, 23, 42, 0.08);
-    --radius-sm: 8px;
+    --radius-sm: 12px;
     --radius-md: 12px;
     --radius-lg: 16px;
 }
@@ -60,7 +60,7 @@ h3,
 }
 
 .page {
-    margin-top: 28px;
+    margin-top: 12px;
 }
 
 /* ── Brand Typography ── */
@@ -127,7 +127,7 @@ input[type="file"]::file-selector-button {
 .related-link,
 .search button,
 .search .clear-btn {
-    min-height: 40px;
+    min-height: 33px;
     border-radius: var(--radius-sm);
     font-weight: 800;
 }
