@@ -84,7 +84,7 @@
             padding: 10px 14px;
             text-decoration: none;
             color: #fff;
-            background: linear-gradient(135deg, #ea6f45, var(--brand));
+            background: #8b5cf6;
             font-weight: 700;
             font-family: inherit;
             font-size: 0.88rem;
@@ -115,6 +115,16 @@
             transform: translateY(-1px);
             box-shadow: 0 4px 12px rgba(26,21,10,0.08);
         }
+        .section-divider {
+            border: none;
+            border-top: 1px solid var(--line);
+            margin: 22px 0;
+        }
+        .helper-text {
+            margin: 6px 2px 0;
+            font-size: 0.78rem;
+            color: var(--muted);
+        }
         @media (max-width: 700px) {
             .page { margin: 18px auto 28px; }
             .account-card { padding: 14px; }
@@ -143,6 +153,30 @@
                     <a class="back-link" href="{{ url_for('dashboard') }}" aria-label="Go to dashboard">← Dashboard</a>
                 </div>
             </form>
+
+            {% if user['auth_provider'] != 'google' %}
+            <hr class="section-divider">
+
+            <h1>Change Password</h1>
+            <form method="POST" action="{{ url_for('account_settings') }}" aria-label="Change password form">
+                <div class="field-group">
+                    <label for="current_password">Current Password</label>
+                    <input type="password" id="current_password" name="current_password" required autocomplete="current-password" aria-required="true">
+                </div>
+                <div class="field-group">
+                    <label for="new_password">New Password</label>
+                    <input type="password" id="new_password" name="new_password" required autocomplete="new-password" aria-required="true" minlength="6">
+                    <p class="helper-text">Use at least 6 characters.</p>
+                </div>
+                <div class="field-group">
+                    <label for="confirm_password">Confirm New Password</label>
+                    <input type="password" id="confirm_password" name="confirm_password" required autocomplete="new-password" aria-required="true" minlength="6">
+                </div>
+                <div class="account-actions">
+                    <button class="save-btn" type="submit" aria-label="Update password">Update Password</button>
+                </div>
+            </form>
+            {% endif %}
         </section>
     </main>
 </body>

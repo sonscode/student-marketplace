@@ -2135,6 +2135,55 @@ def account_settings():
         return redirect(url_for("login"))
 
     if request.method == "POST":
+        current_password = request.form.get("current_password", "").strip()
+
+        # Password change form
+        if current_password:
+            new_password = request.form.get("new_password", "")
+            confirm_password = request.form.get("confirm_password", "")
+            errors = []
+
+            if user.get("auth_provider") == "google":
+                errors.append("Password management is not available for Google-authenticated accounts.")
+            elif not current_password:
+                errors.append("Please enter your current password.")
+            elif not new_password:
+                errors.append("Please enter a new password.")
+            elif len(new_password) < 6:
+                errors.append("New password must be at least 6 characters.")
+            elif new_password == current_password:
+                errors.append("New password must be different from your current password.")
+            elif not confirm_password:
+                errors.append("Please confirm your new password.")
+            elif new_password != confirm_password:
+                errors.append("New passwords do not match.")
+            else:
+                conn = get_db()
+                cursor = conn.cursor()
+                cursor.execute("SELECT password_hash FROM users WHERE id = ?", (user["id"],))
+                row = cursor.fetchone()
+                conn.close()
+
+                if row is None:
+                    errors.append("Account not found.")
+                elif not check_password_hash(row["password_hash"], current_password):
+                    errors.append("Current password is incorrect.")
+
+            if errors:
+                for error in errors:
+                    flash(error, "error")
+                return render_template("account.html", user=user)
+
+            new_hash = generate_password_hash(new_password)
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute("UPDATE users SET password_hash = ? WHERE id = ?", (new_hash, user["id"]))
+            conn.commit()
+            conn.close()
+            flash("Password updated successfully.", "success")
+            return redirect(url_for("account_settings"))
+
+        # Account info update form
         full_name = (request.form.get("full_name") or "").strip()
         phone = (request.form.get("phone") or "").strip()
         errors = []
@@ -2173,6 +2222,21 @@ def account_settings():
     return render_template("account.html", user=user)
 
 
+def _render_create_errors(conn, owner_phone, form_data, errors):
+    conn.close()
+    return (
+        render_template(
+            "create-listing.html",
+            user_phone=owner_phone,
+            form_data=form_data,
+            form_errors=errors,
+            description_max_words=DESCRIPTION_MAX_WORDS,
+            min_leave_date=current_date_iso(),
+        ),
+        400,
+    )
+
+
 @app.route("/add", methods=["POST"])
 @login_required
 def add_listing():
@@ -2180,20 +2244,6 @@ def add_listing():
     cursor = conn.cursor()
     owner_phone = get_authenticated_owner_phone()
     form_data = build_create_form_data(default_phone=owner_phone)
-
-    def render_create_errors(errors):
-        conn.close()
-        return (
-            render_template(
-                "create-listing.html",
-                user_phone=owner_phone,
-                form_data=form_data,
-                form_errors=errors,
-                description_max_words=DESCRIPTION_MAX_WORDS,
-                min_leave_date=current_date_iso(),
-            ),
-            400,
-        )
 
     if not owner_phone:
         conn.close()
@@ -2205,14 +2255,14 @@ def add_listing():
 
     image = request.files.get("image")
     if image is None or not image.filename:
-        return render_create_errors(["Image is required."])
+        return _render_create_errors(conn, owner_phone, form_data, ["Image is required."])
 
     safe_name = secure_filename(image.filename)
     if not safe_name:
-        return render_create_errors(["Invalid image filename."])
+        return _render_create_errors(conn, owner_phone, form_data, ["Invalid image filename."])
 
     if not allowed_file(image.filename):
-        return render_create_errors(["Invalid image format. Use PNG, JPG, JPEG, or WEBP."])
+        return _render_create_errors(conn, owner_phone, form_data, ["Invalid image format. Use PNG, JPG, JPEG, or WEBP."])
 
     validated = validate_listing_fields(
         title_raw=request.form.get("title"),
@@ -2221,15 +2271,15 @@ def add_listing():
         description_raw=request.form.get("description"),
     )
     if validated["errors"]:
-        return render_create_errors(validated["errors"])
+        return _render_create_errors(conn, owner_phone, form_data, validated["errors"])
 
     leave_date, _, leave_date_error = validate_leave_date(request.form.get("leave_date"))
     if leave_date_error:
-        return render_create_errors([leave_date_error])
+        return _render_create_errors(conn, owner_phone, form_data, [leave_date_error])
 
     category = (request.form.get("category") or "").strip()
     if not category:
-        return render_create_errors(["Category is required."])
+        return _render_create_errors(conn, owner_phone, form_data, ["Category is required."])
 
     title = validated["title"]
     price = validated["price"]
@@ -2239,7 +2289,7 @@ def add_listing():
         image_url = upload_listing_image(image)
     except Exception:
         app.logger.exception("Cloudinary upload failed for listing image.")
-        return render_create_errors(["Image upload failed. Please try again."])
+        return _render_create_errors(conn, owner_phone, form_data, ["Image upload failed. Please try again."])
     is_featured = 0
 
     if table_has_column(cursor, "listings", "updated_at"):
