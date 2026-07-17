@@ -19,7 +19,12 @@
                 var(--bg);
             min-height: 100vh;
         }
-        .page { width: min(680px, 92vw); margin: 34px auto 50px; display: grid; gap: 14px; }
+        .page {
+            width: min(680px, 92vw);
+            margin: 34px auto 50px;
+            display: grid;
+            gap: 14px;
+        }
         .account-card {
             border: 1px solid var(--line-soft);
             border-radius: var(--radius-lg);
@@ -50,25 +55,33 @@
             border: 1px solid var(--line);
             border-radius: var(--radius-sm);
             padding: 10px 12px;
-            font-size: 0.92rem;
+            font-size: 1rem;
             font-family: inherit;
             background: #ffffff;
             color: var(--text);
             box-sizing: border-box;
+            transition: border-color 0.14s ease, box-shadow 0.14s ease;
         }
         .field-group input:focus {
             border-color: #93c5fd;
             box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
             outline: none;
         }
+        .account-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+            align-items: center;
+        }
         .save-btn {
             display: inline-flex;
             align-items: center;
             justify-content: center;
             gap: 6px;
-            border: 1px solid var(--line);
-            border-radius: 12px;
-            padding: 9px 16px;
+            border: 1px solid transparent;
+            border-radius: var(--radius-sm);
+            padding: 10px 14px;
             text-decoration: none;
             color: #fff;
             background: linear-gradient(135deg, #ea6f45, var(--brand));
@@ -77,35 +90,58 @@
             font-size: 0.88rem;
             cursor: pointer;
             transition: transform 0.12s ease, box-shadow 0.12s ease;
-            margin-top: 6px;
         }
         .save-btn:hover {
             transform: translateY(-1px);
             box-shadow: 0 8px 18px rgba(26, 21, 10, 0.08);
         }
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            border: 1px solid var(--line);
+            border-radius: var(--radius-sm);
+            padding: 10px 14px;
+            text-decoration: none;
+            color: var(--text);
+            background: #fff;
+            font-weight: 700;
+            font-family: inherit;
+            font-size: 0.88rem;
+            transition: transform 0.12s ease, box-shadow 0.12s ease;
+        }
+        .back-link:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(26,21,10,0.08);
+        }
         @media (max-width: 700px) {
             .page { margin: 18px auto 28px; }
             .account-card { padding: 14px; }
             .account-card h1 { font-size: 1.05rem; }
+            .field-group input { font-size: 16px; }
         }
     </style>
 </head>
 <body>
     {% include "_navigation.html" %}
     {% include "_flash_messages.html" %}
-    <main class="page">
+    <main class="page" role="main" aria-label="Account settings">
         <section class="account-card">
             <h1>Account Settings</h1>
-            <form method="POST" action="{{ url_for('account_settings') }}">
+            <form method="POST" action="{{ url_for('account_settings') }}" aria-label="Account settings form">
                 <div class="field-group">
                     <label for="full_name">Full Name</label>
-                    <input type="text" id="full_name" name="full_name" value="{{ user['full_name'] }}" required>
+                    <input type="text" id="full_name" name="full_name" value="{{ user['full_name'] }}" required autocomplete="name" aria-required="true">
                 </div>
                 <div class="field-group">
                     <label for="phone">Phone Number</label>
-                    <input type="text" id="phone" name="phone" value="{{ user['phone'] }}" required>
+                    <input type="tel" id="phone" name="phone" value="{{ user['phone'] }}" required autocomplete="tel" aria-required="true" inputmode="tel">
                 </div>
-                <button class="save-btn" type="submit">Save Changes</button>
+                <div class="account-actions">
+                    <button class="save-btn" type="submit" aria-label="Save account changes">Save Changes</button>
+                    <a class="back-link" href="{{ url_for('dashboard') }}" aria-label="Go to dashboard">← Dashboard</a>
+                </div>
             </form>
         </section>
     </main>

@@ -2137,16 +2137,38 @@ def account_settings():
     if request.method == "POST":
         full_name = (request.form.get("full_name") or "").strip()
         phone = (request.form.get("phone") or "").strip()
-        if full_name:
+        errors = []
+
+        if not full_name:
+            errors.append("Full name is required.")
+
+        normalized_phone = normalize_phone(phone)
+        if not normalized_phone:
+            errors.append("Enter a valid Cameroon phone number (9 digits or +237 format).")
+
+        if normalized_phone:
             conn = get_db()
             cursor = conn.cursor()
-            cursor.execute("UPDATE users SET full_name = ?, phone = ? WHERE id = ?", (full_name, phone, user["id"]))
-            conn.commit()
+            cursor.execute("SELECT id FROM users WHERE phone = ? AND id != ?", (normalized_phone, user["id"]))
+            existing = cursor.fetchone()
             conn.close()
-            session["user_name"] = full_name
-            session["user_phone"] = phone
-            flash("Account updated.", "success")
-            return redirect(url_for("account_settings"))
+            if existing is not None:
+                errors.append("This phone number is already in use by another account.")
+
+        if errors:
+            for error in errors:
+                flash(error, "error")
+            return render_template("account.html", user=user)
+
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET full_name = ?, phone = ? WHERE id = ?", (full_name, normalized_phone, user["id"]))
+        conn.commit()
+        conn.close()
+        session["user_name"] = full_name
+        session["user_phone"] = normalized_phone
+        flash("Account updated.", "success")
+        return redirect(url_for("account_settings"))
 
     return render_template("account.html", user=user)
 
