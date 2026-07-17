@@ -1872,6 +1872,58 @@ def register():
     )
 
 
+@app.route("/forgot-password", methods=["GET", "POST"])
+def forgot_password():
+    email = (request.form.get("email") or "").strip().lower()
+
+    if request.method == "POST":
+        if not email or "@" not in email:
+            flash("Please enter a valid email address.", "error")
+            return render_template("forgot_password.html")
+
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM users WHERE lower(email) = ?", (email,))
+        user_row = cursor.fetchone()
+        conn.close()
+
+        if user_row is not None:
+            token = str(uuid.uuid4())
+            expires_at = (datetime.utcnow() + timedelta(minutes=30)).isoformat(timespec="seconds")
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS password_reset_tokens(
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    token TEXT NOT NULL UNIQUE,
+                    expires_at TEXT NOT NULL,
+                    used INTEGER DEFAULT 0,
+                    created_at TEXT NOT NULL
+                )
+                """
+            )
+            cursor.execute(
+                "INSERT INTO password_reset_tokens (user_id, token, expires_at, created_at) VALUES (?, ?, ?, ?)",
+                (user_row["id"], token, expires_at, datetime.utcnow().isoformat(timespec="seconds")),
+            )
+            conn.commit()
+            conn.close()
+
+            reset_url = url_for("reset_password", token=token, _external=True)
+            app.logger.warning("PASSWORD_RESET_LINK email=%s url=%s", email, reset_url)
+
+        flash("If that email is linked to an account, we sent a password reset link.", "success")
+        return redirect(url_for("login"))
+
+    return render_template("forgot_password.html")
+
+@app.route("/reset-password/<token>", methods=["GET", "POST"])
+def reset_password(token):
+    return redirect(url_for("login"))
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     user = current_user_record()

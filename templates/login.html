@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&family=Sora:wght@700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/marketplace.css') }}">
     <style>
         :root {
             --bg: #f7f4ec;
@@ -15,7 +16,7 @@
             --text: #1b1d20;
             --muted: #60656f;
             --line: #d0d6e2;
-            --brand: #d0562d;
+            --brand: #8b5cf6;
             --soft: #eef2f8;
             --danger-bg: #fff3f3;
             --danger-line: #f2c8c9;
@@ -117,8 +118,9 @@
         }
 
         input:focus {
-            border-color: #d68868;
-            box-shadow: 0 0 0 3px rgba(208, 86, 45, 0.15);
+            border-color: #93c5fd;
+            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.14);
+            outline: none;
         }
 
         .actions {
@@ -143,7 +145,7 @@
 
         .btn.primary {
             color: #fff;
-            background: linear-gradient(135deg, #ea6f45, var(--brand));
+            background: #8b5cf6;
         }
 
         .btn.google {
@@ -172,6 +174,21 @@
             margin: 0;
         }
 
+        .forgot-link {
+            color: #8b5cf6;
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .forgot-link:hover {
+            text-decoration: underline;
+        }
+
+        .forgot-row {
+            display: flex;
+            justify-content: flex-end;
+        }
+
         @keyframes rise {
             from {
                 opacity: 0;
@@ -182,8 +199,13 @@
                 transform: translateY(0);
             }
         }
+
+        @media (max-width: 700px) {
+            .page { margin: 18px auto 28px; }
+            .card { padding: 14px; }
+            input { font-size: 16px; }
+        }
     </style>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/marketplace.css') }}">
 </head>
 <body>
     <main class="page">
@@ -210,6 +232,10 @@
                 <div class="field">
                     <label for="password">Password</label>
                     <input id="password" type="password" name="password" minlength="6" required>
+                </div>
+
+                <div class="forgot-row">
+                    <a class="forgot-link" href="{{ url_for('forgot_password') }}">Forgot Password?</a>
                 </div>
 
                 <div class="actions">
