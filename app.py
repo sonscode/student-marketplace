@@ -23,6 +23,7 @@ from dotenv import load_dotenv
 import cloudinary
 import cloudinary.uploader
 from services import camerpay as campay
+from services.email import send_password_reset_email
 from apscheduler.schedulers.background import BackgroundScheduler
 
 load_dotenv()
@@ -1367,6 +1368,8 @@ def init_postgres_db():
         cursor.execute("UPDATE users SET is_admin = 0 WHERE is_admin IS NULL")
         cursor.execute("UPDATE users SET is_active = 1 WHERE is_active IS NULL")
         cursor.execute("UPDATE users SET is_verified = 0 WHERE is_verified IS NULL")
+        # Keep email nullable for existing local accounts; empty strings break uniqueness.
+        cursor.execute("UPDATE users SET email = NULL WHERE email IS NOT NULL AND TRIM(email) = ''")
 
         payment_columns = set()
         cursor.execute(
@@ -1513,6 +1516,8 @@ def init_db():
     cursor.execute("UPDATE users SET is_admin = 0 WHERE is_admin IS NULL")
     cursor.execute("UPDATE users SET is_active = 1 WHERE is_active IS NULL")
     cursor.execute("UPDATE users SET is_verified = 0 WHERE is_verified IS NULL")
+    # Keep email nullable for existing local accounts; empty strings break uniqueness.
+    cursor.execute("UPDATE users SET email = NULL WHERE email IS NOT NULL AND TRIM(email) = ''")
     cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique ON users(email)")
     cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub_unique ON users(google_sub)")
 
@@ -1819,10 +1824,12 @@ def register():
     error = ""
     full_name = ""
     phone_input = ""
+    email = ""
 
     if request.method == "POST":
         full_name = request.form.get("full_name", "").strip()
         phone_input = normalize_phone(request.form.get("phone"))
+        email = (request.form.get("email") or "").strip().lower()
         password = request.form.get("password", "")
         confirm_password = request.form.get("confirm_password", "")
 
@@ -1835,30 +1842,41 @@ def register():
         elif password != confirm_password:
             error = "Passwords do not match."
         else:
-            conn = get_db()
-            cursor = conn.cursor()
-            cursor.execute("SELECT id FROM users WHERE phone = ?", (phone_input,))
-            existing_user = cursor.fetchone()
+            normalized_email = email or None
+            if normalized_email:
+                conn = get_db()
+                cursor = conn.cursor()
+                cursor.execute("SELECT id FROM users WHERE lower(email) = ?", (normalized_email,))
+                existing_email = cursor.fetchone()
+                conn.close()
+                if existing_email:
+                    error = "This email address is already linked to another account."
 
-            if existing_user:
-                error = "An account with this phone already exists."
-            else:
-                password_hash = generate_password_hash(password)
-                created_at = datetime.utcnow().isoformat(timespec="seconds")
-                cursor.execute(
-                    """
-                    INSERT INTO users (full_name, phone, password_hash, email, google_sub, auth_provider, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (full_name, phone_input, password_hash, None, None, "local", created_at),
-                )
-                conn.commit()
-                cursor.execute("SELECT * FROM users WHERE phone = ?", (phone_input,))
-                created_user = cursor.fetchone()
-                if created_user is not None:
-                    set_user_session(created_user)
+            if not error:
+                conn = get_db()
+                cursor = conn.cursor()
+                cursor.execute("SELECT id FROM users WHERE phone = ?", (phone_input,))
+                existing_user = cursor.fetchone()
 
-            conn.close()
+                if existing_user:
+                    error = "An account with this phone already exists."
+                else:
+                    password_hash = generate_password_hash(password)
+                    created_at = datetime.utcnow().isoformat(timespec="seconds")
+                    cursor.execute(
+                        """
+                        INSERT INTO users (full_name, phone, password_hash, email, google_sub, auth_provider, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (full_name, phone_input, password_hash, normalized_email, None, "local", created_at),
+                    )
+                    conn.commit()
+                    cursor.execute("SELECT * FROM users WHERE phone = ?", (phone_input,))
+                    created_user = cursor.fetchone()
+                    if created_user is not None:
+                        set_user_session(created_user)
+
+                conn.close()
 
             if not error:
                 return redirect(url_for("home"))
@@ -1869,6 +1887,7 @@ def register():
         success="",
         full_name=full_name,
         phone=phone_input,
+        email=email,
     )
 
 
@@ -1883,45 +1902,111 @@ def forgot_password():
 
         conn = get_db()
         cursor = conn.cursor()
-        cursor.execute("SELECT id FROM users WHERE lower(email) = ?", (email,))
+        # Fetch id and auth_provider in a single query to avoid reusing a closed connection.
+        cursor.execute("SELECT id, auth_provider FROM users WHERE lower(email) = ?", (email,))
         user_row = cursor.fetchone()
-        conn.close()
 
         if user_row is not None:
-            token = str(uuid.uuid4())
-            expires_at = (datetime.utcnow() + timedelta(minutes=30)).isoformat(timespec="seconds")
-            conn = get_db()
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS password_reset_tokens(
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id INTEGER NOT NULL,
-                    token TEXT NOT NULL UNIQUE,
-                    expires_at TEXT NOT NULL,
-                    used INTEGER DEFAULT 0,
-                    created_at TEXT NOT NULL
+            if user_row["auth_provider"] == "google":
+                app.logger.info("PASSWORD_RESET_SKIP_GOOGLE email=%s", email)
+            else:
+                token = str(uuid.uuid4())
+                expires_at = (datetime.utcnow() + timedelta(minutes=30)).isoformat(timespec="seconds")
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS password_reset_tokens(
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER NOT NULL,
+                        token TEXT NOT NULL UNIQUE,
+                        expires_at TEXT NOT NULL,
+                        used INTEGER DEFAULT 0,
+                        created_at TEXT NOT NULL
+                    )
+                    """
                 )
-                """
-            )
-            cursor.execute(
-                "INSERT INTO password_reset_tokens (user_id, token, expires_at, created_at) VALUES (?, ?, ?, ?)",
-                (user_row["id"], token, expires_at, datetime.utcnow().isoformat(timespec="seconds")),
-            )
-            conn.commit()
-            conn.close()
+                # Invalidate all previous unused tokens for this user so only the newest one works.
+                cursor.execute(
+                    "UPDATE password_reset_tokens SET used = 1 WHERE user_id = ? AND used = 0 AND id != 0",
+                    (user_row["id"],),
+                )
+                cursor.execute(
+                    "INSERT INTO password_reset_tokens (user_id, token, expires_at, created_at) VALUES (?, ?, ?, ?)",
+                    (user_row["id"], token, expires_at, datetime.utcnow().isoformat(timespec="seconds")),
+                )
+                conn.commit()
 
-            reset_url = url_for("reset_password", token=token, _external=True)
-            app.logger.warning("PASSWORD_RESET_LINK email=%s url=%s", email, reset_url)
+                reset_url = url_for("reset_password", token=token, _external=True)
+                send_password_reset_email(to=email, reset_url=reset_url)
+                app.logger.info("PASSWORD_RESET_GENERATED user_id=%d", user_row["id"])
+
+        conn.close()
 
         flash("If that email is linked to an account, we sent a password reset link.", "success")
         return redirect(url_for("login"))
 
     return render_template("forgot_password.html")
-
 @app.route("/reset-password/<token>", methods=["GET", "POST"])
 def reset_password(token):
-    return redirect(url_for("login"))
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT id, user_id, expires_at, used FROM password_reset_tokens WHERE token = ?",
+        (token,),
+    )
+    token_row = cursor.fetchone()
+    conn.close()
+
+    if token_row is None:
+        flash("This password reset link is invalid or has already been used.", "error")
+        return redirect(url_for("login"))
+
+    if token_row["used"] == 1:
+        flash("This password reset link has already been used.", "error")
+        return redirect(url_for("login"))
+
+    expires_at = token_row["expires_at"]
+    try:
+        expires_dt = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+        if expires_dt < datetime.utcnow().replace(tzinfo=None):
+            flash("This password reset link has expired. Please request a new one.", "error")
+            return redirect(url_for("forgot_password"))
+    except ValueError:
+        flash("This password reset link is invalid.", "error")
+        return redirect(url_for("login"))
+
+    if request.method == "POST":
+        new_password = request.form.get("new_password", "")
+        confirm_password = request.form.get("confirm_password", "")
+        errors = []
+
+        if not new_password:
+            errors.append("Please enter a new password.")
+        elif len(new_password) < 6:
+            errors.append("New password must be at least 6 characters.")
+
+        if not confirm_password:
+            errors.append("Please confirm your new password.")
+        elif new_password != confirm_password:
+            errors.append("New passwords do not match.")
+
+        if errors:
+            for error in errors:
+                flash(error, "error")
+            return render_template("reset_password.html", token=token)
+
+        new_hash = generate_password_hash(new_password)
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET password_hash = ? WHERE id = ?", (new_hash, token_row["user_id"]))
+        cursor.execute("UPDATE password_reset_tokens SET used = 1 WHERE id = ?", (token_row["id"],))
+        conn.commit()
+        conn.close()
+
+        clear_user_session()
+        flash("Your password has been reset successfully. Please log in with your new password.", "success")
+        return redirect(url_for("login"))
+
+    return render_template("reset_password.html", token=token)
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -1932,6 +2017,7 @@ def login():
 
     error = ""
     phone_input = ""
+    email = ""
     next_url = sanitize_next_url(request.args.get("next") or request.form.get("next") or url_for("home"))
 
     if request.method == "POST":
@@ -2022,15 +2108,16 @@ def google_authorized():
         password_hash = generate_password_hash(uuid.uuid4().hex)
         cursor.execute(
             """
-            INSERT INTO users (full_name, phone, password_hash, email, google_sub, auth_provider, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users (full_name, phone, password_hash, email, google_sub, auth_provider, created_at, is_verified)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (full_name, phone_seed, password_hash, email, google_sub or None, "google", created_at),
+            (full_name, phone_seed, password_hash, email, google_sub or None, "google", created_at, 1),
         )
         conn.commit()
         cursor.execute("SELECT * FROM users WHERE id = ?", (cursor.lastrowid,))
         user = cursor.fetchone()
     else:
+        is_local_linked = user["auth_provider"] == "local" and google_sub
         updated_name = full_name or user["full_name"]
         updated_email = email if email is not None else user["email"]
         updated_google_sub = google_sub or user["google_sub"]
@@ -2039,14 +2126,21 @@ def google_authorized():
         cursor.execute(
             """
             UPDATE users
-            SET full_name = ?, email = ?, google_sub = ?, auth_provider = ?
+            SET full_name = ?, email = ?, google_sub = ?, auth_provider = ?, is_verified = ?
             WHERE id = ?
             """,
-            (updated_name, updated_email, updated_google_sub, updated_provider, user["id"]),
+            (updated_name, updated_email, updated_google_sub, updated_provider, 1, user["id"]),
         )
         conn.commit()
         cursor.execute("SELECT * FROM users WHERE id = ?", (user["id"],))
         user = cursor.fetchone()
+
+        if is_local_linked:
+            flash(
+                "Your existing account has been linked to Google. "
+                "You can now sign in with Google using this account.",
+                "success",
+            )
 
     conn.close()
 
@@ -2237,6 +2331,7 @@ def account_settings():
 
         # Account info update form
         full_name = (request.form.get("full_name") or "").strip()
+        email = (request.form.get("email") or "").strip().lower()
         phone = (request.form.get("phone") or "").strip()
         errors = []
 
@@ -2246,6 +2341,16 @@ def account_settings():
         normalized_phone = normalize_phone(phone)
         if not normalized_phone:
             errors.append("Enter a valid Cameroon phone number (9 digits or +237 format).")
+
+        normalized_email = email or None
+        if normalized_email:
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM users WHERE lower(email) = lower(?) AND id != ?", (normalized_email, user["id"]))
+            existing = cursor.fetchone()
+            conn.close()
+            if existing is not None:
+                errors.append("This email address is already linked to another account.")
 
         if normalized_phone:
             conn = get_db()
@@ -2263,7 +2368,10 @@ def account_settings():
 
         conn = get_db()
         cursor = conn.cursor()
-        cursor.execute("UPDATE users SET full_name = ?, phone = ? WHERE id = ?", (full_name, normalized_phone, user["id"]))
+        cursor.execute(
+            "UPDATE users SET full_name = ?, email = ?, phone = ? WHERE id = ?",
+            (full_name, normalized_email, normalized_phone, user["id"]),
+        )
         conn.commit()
         conn.close()
         session["user_name"] = full_name

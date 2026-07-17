@@ -33,6 +33,7 @@ TABLE_COLUMNS = {
         "auth_provider",
         "is_admin",
         "is_active",
+        "is_verified",
         "created_at",
     ),
     "listings": (
@@ -139,11 +140,13 @@ def row_to_dict(table, row):
         raise ValueError(f"Source row in {table} is missing id.")
 
     if table == "users":
+        # Email is unique but nullable so existing local accounts can migrate without one.
         values["email"] = blank_to_none(values["email"])
         values["google_sub"] = blank_to_none(values["google_sub"])
         values["auth_provider"] = values["auth_provider"] or "local"
         values["is_admin"] = 0 if values["is_admin"] is None else values["is_admin"]
         values["is_active"] = 1 if values["is_active"] is None else values["is_active"]
+        values["is_verified"] = 0 if values["is_verified"] is None else values["is_verified"]
         values["created_at"] = values["created_at"] or utc_now()
 
     if table == "listings":
