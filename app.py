@@ -2127,6 +2127,30 @@ def dashboard():
     )
 
 
+@app.route("/account", methods=["GET", "POST"])
+@login_required
+def account_settings():
+    user = current_user_record()
+    if user is None:
+        return redirect(url_for("login"))
+
+    if request.method == "POST":
+        full_name = (request.form.get("full_name") or "").strip()
+        phone = (request.form.get("phone") or "").strip()
+        if full_name:
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute("UPDATE users SET full_name = ?, phone = ? WHERE id = ?", (full_name, phone, user["id"]))
+            conn.commit()
+            conn.close()
+            session["user_name"] = full_name
+            session["user_phone"] = phone
+            flash("Account updated.", "success")
+            return redirect(url_for("account_settings"))
+
+    return render_template("account.html", user=user)
+
+
 @app.route("/add", methods=["POST"])
 @login_required
 def add_listing():

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Azison | Account Settings</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&family=Sora:wght@700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/marketplace.css') }}">
+    <style>
+        body {
+            margin: 0;
+            font-family: "Manrope", "Segoe UI", sans-serif;
+            background:
+                radial-gradient(circle at 10% 0%, #fff2d7 0, transparent 28%),
+                radial-gradient(circle at 90% 10%, #ffe7dd 0, transparent 24%),
+                var(--bg);
+            min-height: 100vh;
+        }
+        .page { width: min(680px, 92vw); margin: 34px auto 50px; display: grid; gap: 14px; }
+        .account-card {
+            border: 1px solid var(--line-soft);
+            border-radius: var(--radius-lg);
+            background: var(--surface);
+            padding: 20px;
+            box-shadow: var(--shadow-lg);
+        }
+        .account-card h1 {
+            margin: 0 0 18px;
+            font-size: 1.15rem;
+            letter-spacing: -0.01em;
+            color: var(--text);
+        }
+        .field-group { margin-bottom: 14px; }
+        .field-group:last-child { margin-bottom: 0; }
+        .field-group label {
+            display: block;
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-bottom: 4px;
+        }
+        .field-group input {
+            display: block;
+            width: 100%;
+            border: 1px solid var(--line);
+            border-radius: var(--radius-sm);
+            padding: 10px 12px;
+            font-size: 0.92rem;
+            font-family: inherit;
+            background: #ffffff;
+            color: var(--text);
+            box-sizing: border-box;
+        }
+        .field-group input:focus {
+            border-color: #93c5fd;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+            outline: none;
+        }
+        .save-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 9px 16px;
+            text-decoration: none;
+            color: #fff;
+            background: linear-gradient(135deg, #ea6f45, var(--brand));
+            font-weight: 700;
+            font-family: inherit;
+            font-size: 0.88rem;
+            cursor: pointer;
+            transition: transform 0.12s ease, box-shadow 0.12s ease;
+            margin-top: 6px;
+        }
+        .save-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 18px rgba(26, 21, 10, 0.08);
+        }
+        @media (max-width: 700px) {
+            .page { margin: 18px auto 28px; }
+            .account-card { padding: 14px; }
+            .account-card h1 { font-size: 1.05rem; }
+        }
+    </style>
+</head>
+<body>
+    {% include "_navigation.html" %}
+    {% include "_flash_messages.html" %}
+    <main class="page">
+        <section class="account-card">
+            <h1>Account Settings</h1>
+            <form method="POST" action="{{ url_for('account_settings') }}">
+                <div class="field-group">
+                    <label for="full_name">Full Name</label>
+                    <input type="text" id="full_name" name="full_name" value="{{ user['full_name'] }}" required>
+                </div>
+                <div class="field-group">
+                    <label for="phone">Phone Number</label>
+                    <input type="text" id="phone" name="phone" value="{{ user['phone'] }}" required>
+                </div>
+                <button class="save-btn" type="submit">Save Changes</button>
+            </form>
+        </section>
+    </main>
+</body>
+</html>

@@ -23,6 +23,7 @@
                     {% if current_user and current_user.get('is_admin') %}
                         <a class="nav-link admin" href="{{ url_for('admin_panel') }}">Admin</a>
                     {% endif %}
+                    <a class="nav-link" href="{{ url_for('account_settings') }}">Account</a>
                     <form class="inline-form" method="POST" action="{{ url_for('logout') }}">
                         <button class="nav-link logout-btn" type="submit">Logout</button>
                     </form>
@@ -44,6 +45,7 @@
                         {% if current_user and current_user.get('is_admin') %}
                             <a class="nav-link admin" href="{{ url_for('admin_panel') }}">Admin</a>
                         {% endif %}
+                        <a class="nav-link" href="{{ url_for('account_settings') }}">Account</a>
                         <form class="inline-form" method="POST" action="{{ url_for('logout') }}">
                             <button class="nav-link logout-btn" type="submit">Logout</button>
                         </form>
@@ -121,6 +123,7 @@
     font-family: inherit;
     cursor: pointer;
     transition: transform 0.12s ease, box-shadow 0.12s ease;
+    box-sizing: border-box;
 }
 .nav-link:hover {
     transform: translateY(-1px);
@@ -238,6 +241,7 @@
     justify-content: center;
     padding: 9px 12px;
     font-size: 0.85rem;
+    box-sizing: border-box;
 }
 .nav-more-dropdown .inline-form {
     display: block;
