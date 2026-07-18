@@ -2012,11 +2012,17 @@ def reset_password(token):
             return render_template("reset_password.html", token=token)
 
         new_hash = generate_password_hash(new_password)
+        print(f"DEBUG: Setting password hash for user_id={token_row['user_id']}")
+        print(f"DEBUG: Old hash check - token_row would have user_id: {token_row['user_id']}")
         conn = get_db()
         cursor = conn.cursor()
         cursor.execute("UPDATE users SET password_hash = ? WHERE id = ?", (new_hash, token_row["user_id"]))
+        print(f"DEBUG: UPDATE affected {cursor.rowcount} row(s)")
         cursor.execute("UPDATE password_reset_tokens SET used = 1 WHERE id = ?", (token_row["id"],))
         conn.commit()
+        cursor.execute("SELECT password_hash FROM users WHERE id = ?", (token_row["user_id"],))
+        check_row = cursor.fetchone()
+        print(f"DEBUG: Verifying - password_hash stored: {check_row['password_hash'][:20] if check_row else 'None'}...")
         conn.close()
 
         clear_user_session()
