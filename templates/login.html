@@ -8,19 +8,21 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&family=Sora:wght@700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/marketplace.css') }}">
     <style>
         :root {
             --bg: #f7f4ec;
-            --card: #dce8f5;
+            --card: #eef2f8;
             --text: #1b1d20;
             --muted: #60656f;
             --line: #d0d6e2;
-            --brand: #8b5cf6;
+            --brand: #d0562d;
             --soft: #eef2f8;
             --danger-bg: #fff3f3;
             --danger-line: #f2c8c9;
             --danger-text: #a31f23;
+            --ok-bg: #eefaf3;
+            --ok-line: #bbe9cd;
+            --ok-text: #1d6f3a;
         }
 
         * {
@@ -39,7 +41,7 @@
         }
 
         .page {
-            width: min(700px, 92vw);
+            width: min(720px, 92vw);
             margin: 34px auto 48px;
         }
 
@@ -83,8 +85,12 @@
             border-radius: 12px;
             padding: 10px 12px;
             font-size: 0.92rem;
-            border: 1px solid var(--danger-line);
+            border: 1px solid;
+        }
+
+        .msg.error {
             background: var(--danger-bg);
+            border-color: var(--danger-line);
             color: var(--danger-text);
         }
 
@@ -118,9 +124,8 @@
         }
 
         input:focus {
-            border-color: #93c5fd;
-            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.14);
-            outline: none;
+            border-color: #d68868;
+            box-shadow: 0 0 0 3px rgba(208, 86, 45, 0.15);
         }
 
         .actions {
@@ -145,7 +150,7 @@
 
         .btn.primary {
             color: #fff;
-            background: #8b5cf6;
+            background: linear-gradient(135deg, #ea6f45, var(--brand));
         }
 
         .btn.google {
@@ -175,7 +180,7 @@
         }
 
         .forgot-link {
-            color: #8b5cf6;
+            color: var(--brand);
             font-weight: 700;
             text-decoration: none;
         }
@@ -206,8 +211,10 @@
             input { font-size: 16px; }
         }
     </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/marketplace.css') }}">
 </head>
 <body>
+    {% include "_navigation.html" %}
     <main class="page">
         <a class="back" href="{{ url_for('home') }}">⬅ Back to Listings</a>
 
@@ -218,7 +225,7 @@
             {% include "_flash_messages.html" %}
 
             {% if error %}
-                <div class="msg">{{ error }}</div>
+                <div class="msg error">{{ error }}</div>
             {% endif %}
 
             <form method="POST" action="{{ url_for('login') }}">

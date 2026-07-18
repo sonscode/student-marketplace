@@ -2051,6 +2051,10 @@ def login():
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM users WHERE phone = ?", (phone_input,))
         user = cursor.fetchone()
+        print(f"DEBUG LOGIN: phone_input={phone_input}")
+        if user:
+            print(f"DEBUG LOGIN: found user id={user['id']} auth_provider={user['auth_provider']}")
+            print(f"DEBUG LOGIN: password_hash prefix={str(user['password_hash'])[:20] if user['password_hash'] else 'None'}...")
         conn.close()
 
         if user is None:
