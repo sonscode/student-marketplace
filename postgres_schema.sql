@@ -47,6 +47,15 @@ CREATE TABLE IF NOT EXISTS reports (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    token TEXT NOT NULL UNIQUE,
+    expires_at TEXT NOT NULL,
+    used INTEGER DEFAULT 0,
+    created_at TEXT NOT NULL
+);
+
 ALTER TABLE listings ADD COLUMN IF NOT EXISTS title TEXT;
 ALTER TABLE listings ADD COLUMN IF NOT EXISTS price TEXT;
 ALTER TABLE listings ADD COLUMN IF NOT EXISTS category TEXT;

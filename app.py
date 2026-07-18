@@ -150,7 +150,7 @@ def highlight(text, search):
 
 
 POSTGRES_SCHEMA_FILE = os.path.join(app.root_path, "postgres_schema.sql")
-POSTGRES_TABLES = ("users", "listings", "payments", "reports")
+POSTGRES_TABLES = ("users", "listings", "payments", "reports", "password_reset_tokens")
 
 
 class DatabaseRow(dict):
@@ -224,7 +224,7 @@ class PostgresCursor:
 
     def _should_return_id(self, sql):
         return bool(
-            re.match(r"\s*INSERT\s+INTO\s+(users|listings|payments|reports)\b", sql, re.IGNORECASE)
+            re.match(r"\s*INSERT\s+INTO\s+(users|listings|payments|reports|password_reset_tokens)\b", sql, re.IGNORECASE)
             and not re.search(r"\bRETURNING\b", sql, re.IGNORECASE)
         )
 
@@ -1637,6 +1637,20 @@ def init_db():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_reports_reporter_user_id ON reports(reporter_user_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_reports_created_at ON reports(created_at)")
 
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS password_reset_tokens(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            token TEXT NOT NULL UNIQUE,
+            expires_at TEXT NOT NULL,
+            used INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token ON password_reset_tokens(token)")
+
     conn.commit()
     conn.close()
 
@@ -1921,18 +1935,6 @@ def forgot_password():
                 print("Entering eligible-for-reset branch")
                 token = str(uuid.uuid4())
                 expires_at = (datetime.utcnow() + timedelta(minutes=30)).isoformat(timespec="seconds")
-                cursor.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS password_reset_tokens(
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        user_id INTEGER NOT NULL,
-                        token TEXT NOT NULL UNIQUE,
-                        expires_at TEXT NOT NULL,
-                        used INTEGER DEFAULT 0,
-                        created_at TEXT NOT NULL
-                    )
-                    """
-                )
                 # Invalidate all previous unused tokens for this user so only the newest one works.
                 cursor.execute(
                     "UPDATE password_reset_tokens SET used = 1 WHERE user_id = ? AND used = 0 AND id != 0",
