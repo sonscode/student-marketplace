@@ -17,7 +17,7 @@ import requests
 logger = logging.getLogger(__name__)
 
 RESEND_API_URL = "https://api.resend.com/emails"
-DEFAULT_FROM = "Azison <noreply@azison.com>"
+DEFAULT_FROM = "Azison <onboarding@resend.dev>"
 
 
 def send_email(
@@ -37,12 +37,16 @@ def send_email(
     Returns:
         True if the API call succeeded (2xx), False otherwise.
     """
+    print("send_email() entered")
     api_key = os.environ.get("RESEND_API_KEY")
+    print(api_key is not None)
     if not api_key:
         logger.warning("RESEND_API_KEY not set — skipping email to %s", to)
         return False
 
     from_addr = os.environ.get("RESEND_FROM", DEFAULT_FROM)
+    print(f"From: {from_addr}")
+    print(f"To: {to}")
 
     payload = {
         "from": from_addr,
@@ -54,6 +58,7 @@ def send_email(
         payload["text"] = text
 
     try:
+        print("About to call requests.post()")
         resp = requests.post(
             RESEND_API_URL,
             headers={
@@ -63,6 +68,7 @@ def send_email(
             json=payload,
             timeout=15,
         )
+        print(f"Status: {resp.status_code} Body: {resp.text}")
         if resp.ok:
             logger.info("Email sent to %s (subject=%s)", to, subject)
             return True
@@ -75,6 +81,9 @@ def send_email(
             )
             return False
     except requests.RequestException as exc:
+        print(f"Exception: {exc}")
+        import traceback
+        traceback.print_exc()
         logger.error("Resend API request failed for %s: %s", to, exc)
         return False
 

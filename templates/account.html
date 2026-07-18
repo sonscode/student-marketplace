@@ -183,7 +183,28 @@
                 </div>
             </form>
 
-            {% if user['auth_provider'] != 'google' %}
+            {% if user['auth_provider'] == 'google' or not user['password_hash'] %}
+            <hr class="section-divider">
+
+            <h1>Set Password</h1>
+            <form method="POST" action="{{ url_for('account_settings') }}" aria-label="Set password form">
+                <input type="hidden" name="set_password" value="1">
+                <div class="field-group">
+                    <label for="new_password">New Password</label>
+                    <input type="password" id="new_password" name="new_password" required autocomplete="new-password" aria-required="true" minlength="6">
+                    <p class="helper-text">Use at least 6 characters. This will allow password-based login in addition to Google.</p>
+                </div>
+                <div class="field-group">
+                    <label for="confirm_password">Confirm New Password</label>
+                    <input type="password" id="confirm_password" name="confirm_password" required autocomplete="new-password" aria-required="true" minlength="6">
+                </div>
+                <div class="account-actions">
+                    <button class="save-btn" type="submit" aria-label="Set password">Set Password</button>
+                </div>
+            </form>
+            {% endif %}
+
+            {% if user['auth_provider'] != 'google' and user['password_hash'] %}
             <hr class="section-divider">
 
             <h1>Change Password</h1>

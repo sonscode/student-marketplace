@@ -820,6 +820,7 @@ def current_user_record():
         "email": row["email"] or "",
         "google_sub": row["google_sub"] or "",
         "auth_provider": row["auth_provider"] or "local",
+        "password_hash": row["password_hash"],
         "is_admin": bool(row["is_admin"] == 1),
         "is_active": bool(row["is_active"] == 1),
         "is_verified": bool(row_value(row, "is_verified", 0) == 1),
@@ -1837,12 +1838,14 @@ def register():
             error = "Full name is required."
         elif not phone_input:
             error = "Valid phone number is required."
+        elif not email or "@" not in email:
+            error = "A valid email address is required."
         elif len(password) < 6:
             error = "Password must be at least 6 characters."
         elif password != confirm_password:
             error = "Passwords do not match."
         else:
-            normalized_email = email or None
+            normalized_email = email
             if normalized_email:
                 conn = get_db()
                 cursor = conn.cursor()
@@ -1900,16 +1903,22 @@ def forgot_password():
             flash("Please enter a valid email address.", "error")
             return render_template("forgot_password.html")
 
+        print(f"Submitted email: {email}")
         conn = get_db()
         cursor = conn.cursor()
-        # Fetch id and auth_provider in a single query to avoid reusing a closed connection.
-        cursor.execute("SELECT id, auth_provider FROM users WHERE lower(email) = ?", (email,))
+        # Fetch id and password_hash to determine eligibility for password reset.
+        cursor.execute("SELECT id, password_hash FROM users WHERE lower(email) = ?", (email,))
         user_row = cursor.fetchone()
+        print(f"user_row: {dict(user_row) if user_row else None}")
 
         if user_row is not None:
-            if user_row["auth_provider"] == "google":
-                app.logger.info("PASSWORD_RESET_SKIP_GOOGLE email=%s", email)
+            has_local_password = user_row["password_hash"] and str(user_row["password_hash"]).strip() != ""
+            print(f"has_local_password: {has_local_password}")
+            if not has_local_password:
+                print("Entering no-password branch (Google-only or no password)")
+                app.logger.info("PASSWORD_RESET_SKIP_NO_PASSWORD email=%s", email)
             else:
+                print("Entering eligible-for-reset branch")
                 token = str(uuid.uuid4())
                 expires_at = (datetime.utcnow() + timedelta(minutes=30)).isoformat(timespec="seconds")
                 cursor.execute(
@@ -1936,7 +1945,13 @@ def forgot_password():
                 conn.commit()
 
                 reset_url = url_for("reset_password", token=token, _external=True)
-                send_password_reset_email(to=email, reset_url=reset_url)
+                print(f"About to send email to: {email}")
+                app.logger.info("PASSWORD_RESET_ATTEMPT user_id=%d email=%s", user_row["id"], email)
+                try:
+                    sent = send_password_reset_email(to=email, reset_url=reset_url)
+                    app.logger.info("PASSWORD_RESET_SENT user_id=%d sent=%s", user_row["id"], sent)
+                except Exception:
+                    app.logger.exception("PASSWORD_RESET_FAILED user_id=%d", user_row["id"])
                 app.logger.info("PASSWORD_RESET_GENERATED user_id=%d", user_row["id"])
 
         conn.close()
@@ -2033,7 +2048,18 @@ def login():
         if user is None:
             error = "Invalid phone or password."
         elif user["auth_provider"] == "google":
-            error = "This account uses Google login. Use Continue with Google."
+            # Allow password login if they have set a local password (hybrid account)
+            has_local_password = user["password_hash"] and str(user["password_hash"]).strip() != ""
+            if not has_local_password:
+                error = "This account uses Google login. Use Continue with Google."
+            elif not check_password_hash(user["password_hash"], password):
+                error = "Invalid phone or password."
+            elif user["is_active"] == 0:
+                clear_user_session()
+                error = "Your account has been deactivated. Please contact support."
+            else:
+                set_user_session(user)
+                return redirect(next_url)
         elif not check_password_hash(user["password_hash"], password):
             error = "Invalid phone or password."
         elif user["is_active"] == 0:
@@ -2281,15 +2307,42 @@ def account_settings():
         return redirect(url_for("login"))
 
     if request.method == "POST":
+        # Set Password form (for Google users without a password)
+        if request.form.get("set_password"):
+            new_password = request.form.get("new_password", "")
+            confirm_password = request.form.get("confirm_password", "")
+            errors = []
+
+            if len(new_password) < 6:
+                errors.append("New password must be at least 6 characters.")
+            if new_password != confirm_password:
+                errors.append("New passwords do not match.")
+
+            if errors:
+                for error in errors:
+                    flash(error, "error")
+                return render_template("account.html", user=user)
+
+            new_hash = generate_password_hash(new_password)
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute("UPDATE users SET password_hash = ? WHERE id = ?", (new_hash, user["id"]))
+            conn.commit()
+            conn.close()
+            flash("Password set successfully. You can now log in with your password.", "success")
+            return redirect(url_for("account_settings"))
+
+        # Password change form (existing users with password)
         current_password = request.form.get("current_password", "").strip()
 
-        # Password change form
         if current_password:
             new_password = request.form.get("new_password", "")
             confirm_password = request.form.get("confirm_password", "")
             errors = []
 
-            if user.get("auth_provider") == "google":
+            # Allow password changes for Google users who have set a local password (hybrid accounts)
+            has_local_password = user.get("password_hash") and str(user.get("password_hash")).strip() != ""
+            if user.get("auth_provider") == "google" and not has_local_password:
                 errors.append("Password management is not available for Google-authenticated accounts.")
             elif not current_password:
                 errors.append("Please enter your current password.")
