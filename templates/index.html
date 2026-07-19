@@ -448,6 +448,11 @@
             display: flex;
         }
 
+        .menu-list.above {
+            top: auto;
+            bottom: calc(100% + 4px);
+        }
+
         .menu-list .action-link,
         .menu-list .action-btn {
             display: block;
@@ -1187,13 +1192,25 @@
                 menu.classList.add("open");
                 toggle.setAttribute("aria-expanded", "true");
                 if (card) card.style.zIndex = "100";
-                // Force reflow then constrain width if off-screen
+
+                // Force reflow before measuring
                 void menu.offsetHeight;
+
+                // Keep menu within horizontal bounds
                 var r = menu.getBoundingClientRect();
                 var pad = 12;
                 var maxW = window.innerWidth - r.left - pad;
                 if (r.right > window.innerWidth - pad) {
                     menu.style.maxWidth = Math.max(150, maxW) + "px";
+                }
+
+                // Keep menu within vertical bounds: open above if not enough space below
+                var toggleRect = toggle.getBoundingClientRect();
+                var spaceBelow = window.innerHeight - toggleRect.bottom;
+                var spaceAbove = toggleRect.top;
+                menu.classList.remove("above");
+                if (spaceBelow < r.height && spaceAbove > spaceBelow) {
+                    menu.classList.add("above");
                 }
             }
 
