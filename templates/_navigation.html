@@ -30,7 +30,15 @@
                     <span class="nav-user">Hi, {{ current_user['full_name'] }}</span>
                 {% else %}
                     {% if google_oauth_enabled %}
-                        <a class="nav-link google" href="{{ url_for('login_google', next=url_for('home')) }}">Google</a>
+                    <a class="nav-link google" href="{{ url_for('login_google', next=url_for('home')) }}" aria-label="Sign in with Google">
+                        <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+                            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a6.94 6.94 0 0 1-3.08 5.78v3.03l4.04-2.35c1.07-.62 1.84-1.73 2.2-3.02z"/>
+                            <path fill="#34A853" d="M12 23.5c2.97 0 5.46-1.03 7.28-2.79l-4.04-2.35c-1.03.7-2.35 1.1-3.91 1.1-3 0-5.54-2-6.41-4.71H2.15v3.04C4.03 20.94 7.73 23.5 12 23.5z"/>
+                            <path fill="#FBBC05" d="M5.59 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.03H2.14C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.97l3.41-2.88z"/>
+                            <path fill="#EA4335" d="M12 4.75c1.7 0 3.22.58 4.42 1.73l3.33-3.33C17.45 1.18 14.97 0 12 0 7.73 0 4.03 2.57 2.14 6.5l3.45 2.88c.87-2.71 3.41-4.63 6.41-4.63z"/>
+                        </svg>
+                        Google
+                    </a>
                     {% endif %}
                     <a class="nav-link primary" href="{{ url_for('login', next=url_for('create')) }}">+ Add Listing</a>
                 {% endif %}
@@ -52,7 +60,15 @@
                         <span class="nav-user">Hi, {{ current_user['full_name'] }}</span>
                     {% else %}
                         {% if google_oauth_enabled %}
-                            <a class="nav-link google" href="{{ url_for('login_google', next=url_for('home')) }}">Google</a>
+                            <a class="nav-link google" href="{{ url_for('login_google', next=url_for('home')) }}" aria-label="Sign in with Google">
+                                <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a6.94 6.94 0 0 1-3.08 5.78v3.03l4.04-2.35c1.07-.62 1.84-1.73 2.2-3.02z"/>
+                                    <path fill="#34A853" d="M12 23.5c2.97 0 5.46-1.03 7.28-2.79l-4.04-2.35c-1.03.7-2.35 1.1-3.91 1.1-3 0-5.54-2-6.41-4.71H2.15v3.04C4.03 20.94 7.73 23.5 12 23.5z"/>
+                                    <path fill="#FBBC05" d="M5.59 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.03H2.14C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.97l3.41-2.88z"/>
+                                    <path fill="#EA4335" d="M12 4.75c1.7 0 3.22.58 4.42 1.73l3.33-3.33C17.45 1.18 14.97 0 12 0 7.73 0 4.03 2.57 2.14 6.5l3.45 2.88c.87-2.71 3.41-4.63 6.41-4.63z"/>
+                                </svg>
+                                Google
+                            </a>
                         {% endif %}
                         <a class="nav-link primary" href="{{ url_for('login', next=url_for('create')) }}">+ Add Listing</a>
                     {% endif %}

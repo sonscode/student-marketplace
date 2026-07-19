@@ -242,6 +242,14 @@
             border-radius: 12px;
             padding: 8px;
             animation: lift-in 0.24s ease both;
+            height: 100%;
+        }
+
+        .card-body {
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            flex: 1;
         }
 
         .card.clickable {
@@ -292,6 +300,9 @@
             color: #2c3037;
             font-size: 0.94rem;
             line-height: 1.5;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .card-footer {
