@@ -1147,6 +1147,9 @@
                                 <a href="{{ detail_url }}">
                                     {{ item['title'] | highlight(search) }}
                                 </a>
+                                <span>•</span>
+                                <span style="color: gray; font-size: 0.8rem;"><strong>{{ item['price'] | highlight(search) }}</strong></span>
+
                                 {% if item['is_featured'] == 1 %}
                                     <span class="badge featured" style="font-size:0.7rem;padding:2px 7px;">🔥 Featured</span>
                                 {% endif %}
@@ -1156,8 +1159,8 @@
                             </h2>
 
                             <p class="meta">
-                                <span><strong>{{ item['price'] | highlight(search) }}</strong></span>
-                                <span>•</span>
+                                <!-- <span><strong>{{ item['price'] | highlight(search) }}</strong></span> -->
+                                <!-- <span>•</span> -->
                                 <span>{{ item['category'] | highlight(search) }}</span>
                                 <span>•</span>
                                 {% if item['days_left'] <= 3 %}
@@ -1222,6 +1225,8 @@
                                 <a href="{{ detail_url }}">
                                     {{ item['title'] | highlight(search) }}
                                 </a>
+                                <span>•</span>
+                                 <span style="color: gray; font-size: 0.8rem;"><strong>{{ item['price'] | highlight(search) }}</strong></span>
                                 {% if item['is_featured'] == 1 %}
                                     <span class="badge featured" style="font-size:0.7rem;padding:2px 7px;">🔥 Featured</span>
                                 {% endif %}
@@ -1231,8 +1236,8 @@
                             </h2>
 
                             <p class="meta">
-                                <span><strong>{{ item['price'] | highlight(search) }}</strong></span>
-                                <span>•</span>
+                                <!-- <span><strong>{{ item['price'] | highlight(search) }}</strong></span>
+                                <span>•</span> -->
                                 <span>{{ item['category'] | highlight(search) }}</span>
                                 <span>•</span>
                                 {% if item['days_left'] <= 3 %}
@@ -1300,6 +1305,8 @@
                                         <a href="{{ detail_url }}">
                                             {{ item['title'] | highlight(search) }}
                                         </a>
+                                        <span>•</span>
+                                        <span style="color: gray; font-size: 0.8rem;"><strong>{{ item['price'] | highlight(search) }}</strong></span>
                                         {% if item['is_featured'] == 1 %}
                                             <span class="badge featured" style="font-size:0.7rem;padding:2px 7px;">🔥 Featured</span>
                                         {% endif %}
@@ -1309,8 +1316,8 @@
                                     </h2>
 
                                     <p class="meta">
-                                        <span><strong>{{ item['price'] | highlight(search) }}</strong></span>
-                                        <span>•</span>
+                                        <!-- <span><strong>{{ item['price'] | highlight(search) }}</strong></span>
+                                        <span>•</span> -->
                                         <span>{{ item['category'] | highlight(search) }}</span>
                                         <span>•</span>
                                         <span class="deadline expired">Expired {{ item['days_left'] * -1 }} day(s) ago</span>
