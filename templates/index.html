@@ -1147,7 +1147,7 @@
                                 <a href="{{ detail_url }}">
                                     {{ item['title'] | highlight(search) }}
                                 </a>
-                                <span>•</span>
+                                <span style="color: gray; font-size: 0.8rem;">•</span>
                                 <span style="color: gray; font-size: 0.8rem;"><strong>{{ item['price'] | highlight(search) }}</strong></span>
 
                                 {% if item['is_featured'] == 1 %}
@@ -1225,7 +1225,7 @@
                                 <a href="{{ detail_url }}">
                                     {{ item['title'] | highlight(search) }}
                                 </a>
-                                <span>•</span>
+                                <span style="color: gray; font-size: 0.8rem;">•</span>
                                  <span style="color: gray; font-size: 0.8rem;"><strong>{{ item['price'] | highlight(search) }}</strong></span>
                                 {% if item['is_featured'] == 1 %}
                                     <span class="badge featured" style="font-size:0.7rem;padding:2px 7px;">🔥 Featured</span>
@@ -1305,7 +1305,7 @@
                                         <a href="{{ detail_url }}">
                                             {{ item['title'] | highlight(search) }}
                                         </a>
-                                        <span>•</span>
+                                        <span style="color: gray; font-size: 0.8rem;">•</span>
                                         <span style="color: gray; font-size: 0.8rem;"><strong>{{ item['price'] | highlight(search) }}</strong></span>
                                         {% if item['is_featured'] == 1 %}
                                             <span class="badge featured" style="font-size:0.7rem;padding:2px 7px;">🔥 Featured</span>
