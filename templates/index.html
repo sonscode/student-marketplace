@@ -594,6 +594,72 @@
             line-height: 1;
         }
 
+        /* ── Collapsible Expired Section ── */
+        .expired-section {
+            display: block;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: transparent;
+            overflow: hidden;
+        }
+
+        .expired-section summary {
+            cursor: pointer;
+            user-select: none;
+            list-style: none;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 10px 12px;
+            background: #f0f2f5;
+            border-radius: 12px;
+            transition: background 0.15s ease;
+        }
+
+        .expired-section summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .expired-section summary:hover {
+            background: #e6e9ef;
+        }
+
+        .expired-section summary h2 {
+            margin: 0;
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--muted);
+        }
+
+        .expired-toggle-icon {
+            font-size: 0.75rem;
+            color: var(--muted);
+            transition: transform 0.2s ease;
+        }
+
+        .expired-section[open] .expired-toggle-icon {
+            transform: rotate(90deg);
+        }
+
+        .expired-content {
+            display: grid;
+            gap: 8px;
+            padding: 8px;
+            animation: expired-expand 0.2s ease both;
+        }
+
+        @keyframes expired-expand {
+            from {
+                opacity: 0;
+                transform: translateY(-4px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
         @keyframes lift-in {
             from {
                 opacity: 0;
@@ -1065,26 +1131,15 @@
         </section>
 
         <section class="list">
-            {% if listings %}
-                {% set sections = namespace(featured_shown=false, active_shown=false, expired_shown=false) %}
-                {% for item in listings %}
-                    {% if item['is_expired'] and not sections.expired_shown %}
-                        <div class="listing-section-heading">
-                            <h2>Expired Listings</h2>
-                        </div>
-                        {% set sections.expired_shown = true %}
-                    {% elif item['is_featured'] == 1 and not sections.featured_shown %}
-                        <div class="listing-section-heading">
-                            <h2>⭐ Featured Listings</h2>
-                        </div>
-                        {% set sections.featured_shown = true %}
-                    {% elif not item['is_expired'] and item['is_featured'] != 1 and not sections.active_shown %}
-                        <div class="listing-section-heading">
-                            <h2>Active Listings</h2>
-                        </div>
-                        {% set sections.active_shown = true %}
-                    {% endif %}
+            {% set ns = namespace(any_listings=false) %}
 
+            {# ── Featured Listings (active only) ── #}
+            {% if featured_listings %}
+                {% set ns.any_listings = true %}
+                <div class="listing-section-heading">
+                    <h2>⭐ Featured Listings</h2>
+                </div>
+                {% for item in featured_listings %}
                     {% set detail_url = url_for('listing_detail', id=item['id'], category=request.args.get('category'), search=request.args.get('search')) %}
                     <article class="card clickable" data-href="{{ detail_url }}" tabindex="0" role="link" aria-label="Open listing: {{ item['title'] }}">
                         <div class="card-body">
@@ -1105,9 +1160,7 @@
                                 <span>•</span>
                                 <span>{{ item['category'] | highlight(search) }}</span>
                                 <span>•</span>
-                                {% if item['is_expired'] %}
-                                    <span class="deadline expired">Expired {{ item['days_left'] * -1 }} day(s) ago</span>
-                                {% elif item['days_left'] <= 3 %}
+                                {% if item['days_left'] <= 3 %}
                                     <span class="deadline soon">⚡ Leaving in {{ item['days_left'] }} day(s)</span>
                                 {% else %}
                                     <span class="deadline">Leaving in {{ item['days_left'] }} day(s)</span>
@@ -1135,9 +1188,6 @@
                                     </div>
                                 </div>
 
-                                {% if item['is_expired'] %}
-                                    <span class="chip expired">Expired</span>
-                                {% endif %}
                                 {% if item['seller_is_verified'] %}
                                     <span class="badge verified-icon" title="Verified Seller">
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1156,7 +1206,161 @@
                         {% endif %}
                     </article>
                 {% endfor %}
-            {% else %}
+            {% endif %}
+
+            {# ── Regular Active Listings ── #}
+            {% if active_listings %}
+                {% set ns.any_listings = true %}
+                <div class="listing-section-heading">
+                    <h2>Active Listings</h2>
+                </div>
+                {% for item in active_listings %}
+                    {% set detail_url = url_for('listing_detail', id=item['id'], category=request.args.get('category'), search=request.args.get('search')) %}
+                    <article class="card clickable" data-href="{{ detail_url }}" tabindex="0" role="link" aria-label="Open listing: {{ item['title'] }}">
+                        <div class="card-body">
+                            <h2 style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;">
+                                <a href="{{ detail_url }}">
+                                    {{ item['title'] | highlight(search) }}
+                                </a>
+                                {% if item['is_featured'] == 1 %}
+                                    <span class="badge featured" style="font-size:0.7rem;padding:2px 7px;">🔥 Featured</span>
+                                {% endif %}
+                                {% if item['can_manage'] %}
+                                    <span class="badge you-badge">You</span>
+                                {% endif %}
+                            </h2>
+
+                            <p class="meta">
+                                <span><strong>{{ item['price'] | highlight(search) }}</strong></span>
+                                <span>•</span>
+                                <span>{{ item['category'] | highlight(search) }}</span>
+                                <span>•</span>
+                                {% if item['days_left'] <= 3 %}
+                                    <span class="deadline soon">⚡ Leaving in {{ item['days_left'] }} day(s)</span>
+                                {% else %}
+                                    <span class="deadline">Leaving in {{ item['days_left'] }} day(s)</span>
+                                {% endif %}
+                            </p>
+
+                            {% if item['description']|length > 120 %}
+                                <p class="summary">{{ (item['description'][:40] ~ '...') | highlight(search) }}</p>
+                            {% else %}
+                                <p class="summary">{{ item['description'] | highlight(search) }}</p>
+                            {% endif %}
+
+                            <div class="card-footer">
+                                <div class="menu-wrap">
+                                    <button class="menu-toggle" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Listing actions">⋯</button>
+                                    <div class="menu-list" role="menu">
+                                        <button class="action-link menu-close-btn" type="button" role="menuitem" aria-label="Close menu">✕ Close</button>
+                                        <a class="action-link" role="menuitem" href="{{ detail_url }}">View</a>
+                                        {% if item['can_manage'] %}
+                                            <a class="action-link" role="menuitem" href="{{ url_for('edit_listing', id=item['id']) }}">Edit</a>
+                                            <form method="POST" action="{{ url_for('delete_listing', id=item['id']) }}" onsubmit="return confirm('Are you sure you want to delete this listing?');">
+                                                <button class="action-btn delete" type="submit" role="menuitem">Delete</button>
+                                            </form>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                {% if item['seller_is_verified'] %}
+                                    <span class="badge verified-icon" title="Verified Seller">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                                            <polyline points="22 4 12 14.01 9 11.01"/>
+                                        </svg>
+                                    </span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        {% if item['image'] %}
+                            <a class="thumb-link lightbox-trigger" href="{{ listing_image_url(item['image']) }}" title="Open full image">
+                                <img class="thumb" src="{{ listing_image_url(item['image']) }}" alt="{{ item['title'] }}">
+                            </a>
+                        {% endif %}
+                    </article>
+                {% endfor %}
+            {% endif %}
+
+            {# ── Collapsed Expired Listings ── #}
+            {% if expired_listings %}
+                {% set ns.any_listings = true %}
+                <details class="expired-section">
+                    <summary class="listing-section-heading expired-summary">
+                        <h2>View Expired Listings ({{ expired_listings|length }})</h2>
+                        <span class="expired-toggle-icon">▶</span>
+                    </summary>
+                    <div class="expired-content">
+                        {% for item in expired_listings %}
+                            {% set detail_url = url_for('listing_detail', id=item['id'], category=request.args.get('category'), search=request.args.get('search')) %}
+                            <article class="card clickable" data-href="{{ detail_url }}" tabindex="0" role="link" aria-label="Open listing: {{ item['title'] }}">
+                                <div class="card-body">
+                                    <h2 style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;">
+                                        <a href="{{ detail_url }}">
+                                            {{ item['title'] | highlight(search) }}
+                                        </a>
+                                        {% if item['is_featured'] == 1 %}
+                                            <span class="badge featured" style="font-size:0.7rem;padding:2px 7px;">🔥 Featured</span>
+                                        {% endif %}
+                                        {% if item['can_manage'] %}
+                                            <span class="badge you-badge">You</span>
+                                        {% endif %}
+                                    </h2>
+
+                                    <p class="meta">
+                                        <span><strong>{{ item['price'] | highlight(search) }}</strong></span>
+                                        <span>•</span>
+                                        <span>{{ item['category'] | highlight(search) }}</span>
+                                        <span>•</span>
+                                        <span class="deadline expired">Expired {{ item['days_left'] * -1 }} day(s) ago</span>
+                                    </p>
+
+                                    {% if item['description']|length > 120 %}
+                                        <p class="summary">{{ (item['description'][:40] ~ '...') | highlight(search) }}</p>
+                                    {% else %}
+                                        <p class="summary">{{ item['description'] | highlight(search) }}</p>
+                                    {% endif %}
+
+                                    <div class="card-footer">
+                                        <div class="menu-wrap">
+                                            <button class="menu-toggle" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Listing actions">⋯</button>
+                                            <div class="menu-list" role="menu">
+                                                <button class="action-link menu-close-btn" type="button" role="menuitem" aria-label="Close menu">✕ Close</button>
+                                                <a class="action-link" role="menuitem" href="{{ detail_url }}">View</a>
+                                                {% if item['can_manage'] %}
+                                                    <a class="action-link" role="menuitem" href="{{ url_for('edit_listing', id=item['id']) }}">Edit</a>
+                                                    <form method="POST" action="{{ url_for('delete_listing', id=item['id']) }}" onsubmit="return confirm('Are you sure you want to delete this listing?');">
+                                                        <button class="action-btn delete" type="submit" role="menuitem">Delete</button>
+                                                    </form>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+
+                                        <span class="chip expired">Expired</span>
+                                        {% if item['seller_is_verified'] %}
+                                            <span class="badge verified-icon" title="Verified Seller">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                                                    <polyline points="22 4 12 14.01 9 11.01"/>
+                                                </svg>
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                {% if item['image'] %}
+                                    <a class="thumb-link lightbox-trigger" href="{{ listing_image_url(item['image']) }}" title="Open full image">
+                                        <img class="thumb" src="{{ listing_image_url(item['image']) }}" alt="{{ item['title'] }}">
+                                    </a>
+                                {% endif %}
+                            </article>
+                        {% endfor %}
+                    </div>
+                </details>
+            {% endif %}
+
+            {% if not ns.any_listings %}
                 <p class="empty">No listings match your current search/filter.</p>
             {% endif %}
         </section>

@@ -1821,12 +1821,15 @@ def home():
         else:
             active_listings.append(listing_data)
 
-    enhanced_listings = featured_listings + active_listings + expired_listings
+    # Sort expired listings: most recently expired first (leave_date DESC)
+    expired_listings.sort(key=lambda x: x["leave_date"], reverse=True)
 
     conn.close()
     return render_template(
         "index.html",
-        listings=enhanced_listings,
+        featured_listings=featured_listings,
+        active_listings=active_listings,
+        expired_listings=expired_listings,
         search=search,
     )
 
