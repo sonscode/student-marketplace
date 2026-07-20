@@ -1161,9 +1161,9 @@
                                 <span>{{ item['category'] | highlight(search) }}</span>
                                 <span>•</span>
                                 {% if item['days_left'] <= 3 %}
-                                    <span class="deadline soon">⚡ Leaving in {{ item['days_left'] }} day(s)</span>
+                                    <span class="deadline soon">⚡ {{ item['days_left'] }} day(s) left</span>
                                 {% else %}
-                                    <span class="deadline">Leaving in {{ item['days_left'] }} day(s)</span>
+                                    <span class="deadline">{{ item['days_left'] }} day(s) left</span>
                                 {% endif %}
                             </p>
 
@@ -1236,9 +1236,9 @@
                                 <span>{{ item['category'] | highlight(search) }}</span>
                                 <span>•</span>
                                 {% if item['days_left'] <= 3 %}
-                                    <span class="deadline soon">⚡ Leaving in {{ item['days_left'] }} day(s)</span>
+                                    <span class="deadline soon">⚡ {{ item['days_left'] }} day(s) left</span>
                                 {% else %}
-                                    <span class="deadline">Leaving in {{ item['days_left'] }} day(s)</span>
+                                    <span class="deadline">{{ item['days_left'] }} day(s) left</span>
                                 {% endif %}
                             </p>
 
